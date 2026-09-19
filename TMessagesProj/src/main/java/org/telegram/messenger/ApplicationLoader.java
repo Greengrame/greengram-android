@@ -293,6 +293,8 @@ public class ApplicationLoader extends Application implements CameraXConfig.Prov
         app.exteraless.utils.UtilsConfig.init();
         app.exteraless.glyph.GlyphConfig.init();
         app.exteraless.glyph.GlyphController.getInstance().init();
+        com.exteragram.messenger.badges.BadgesController.INSTANCE.initialize();
+        app.exteraless.updates.AppUpdateController.init(applicationContext);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // Суффикс набора Monet запекается в ThemeInfo.assetName при первой загрузке
             // класса Theme. Если она случилась до загрузки конфигов (процесс поднялся

@@ -1,0 +1,13 @@
+name = "tg-updates"
+main = "src/index.ts"
+compatibility_date = "2026-09-19"
+workers_dev = true
+preview_urls = false
+
+routes = [
+    { pattern = "tg.upd.dexx.moe", custom_domain = true }
+]
+
+[[r2_buckets]]
+binding = "UPDATES"
+bucket_name = "tg-updates"

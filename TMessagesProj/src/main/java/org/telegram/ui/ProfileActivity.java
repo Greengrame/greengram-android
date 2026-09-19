@@ -11624,7 +11624,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         }
         badgeDrawable[a].set(badge.getDocumentId(), animated);
-        badgeDrawable[a].setParticles(false, animated);
+        badgeDrawable[a].setParticles(true, animated);
         updateEmojiStatusDrawableColor();
         return badgeDrawable[a];
     }
@@ -11886,6 +11886,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 BackupImageView fromAvatarImage = chatActivity.avatarContainer.getAvatarImageView();
                 avatarImage.setAnimateFromImageReceiver(fromAvatarImage.getImageReceiver());
             }
+            final BadgeDTO profileBadge = BadgesController.INSTANCE.getBadge(user);
             for (int a = 0; a < 2; a++) {
                 if (nameTextView[a] == null) {
                     continue;
@@ -11918,6 +11919,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 onlineTextView[a].setDrawablePadding(dp(9));
                 onlineTextView[a].setRightDrawableInside(true);
+                nameTextView[a].setRightDrawable2OnClick(null);
                 onlineTextView[a].setRightDrawable(a == 1 && hiddenStatusButton ? getShowStatusButton() : null);
                 onlineTextView[a].setRightDrawableOnClick(a == 1 && hiddenStatusButton ? v -> {
                     MessagePrivateSeenView.showSheet(getContext(), currentAccount, getDialogId(), true, null, () -> {
@@ -11942,12 +11944,26 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         nameTextViewRightDrawable2ContentDescription = null;
                     }
                     Long selfEmojiDocId = (user != null && user.self) ? UserObject.getEmojiStatusDocumentId(user) : null;
-                    BadgeDTO userBadge = BadgesController.INSTANCE.getBadge(user);
-                    if (userBadge != null) {
+                    if (profileBadge != null && getMessagesController().isPremiumUser(user)) {
                         rightIconIsStatus = true;
                         rightIconIsPremium = false;
-                        nameTextView[a].setRightDrawable(getBadgeDrawable(userBadge, false, a));
-                        nameTextViewRightDrawableContentDescription = userBadge.getText();
+                        if (user.self && selfEmojiDocId != null && selfEmojiDocId != 0 && DialogObject.getEmojiStatusDocumentId(user.emoji_status) == 0) {
+                            TLRPC.TL_emojiStatus status = new TLRPC.TL_emojiStatus();
+                            status.document_id = selfEmojiDocId;
+                            nameTextView[a].setRightDrawable(getEmojiStatusDrawable(status, false, false, a));
+                        } else {
+                            nameTextView[a].setRightDrawable(getEmojiStatusDrawable(user.emoji_status, false, false, a));
+                        }
+                        nameTextView[a].setRightDrawable2(getBadgeDrawable(profileBadge, false, a));
+                        nameTextView[a].setRightDrawable2OnClick(v -> BadgesController.INSTANCE.showBadgeBulletin(ProfileActivity.this, profileBadge, user, resourcesProvider, currentAccount));
+                        nameTextViewRightDrawable2ContentDescription = profileBadge.getText();
+                        nameTextViewRightDrawableContentDescription = LocaleController.getString(R.string.AccDescrPremium);
+                    } else if (profileBadge != null) {
+                        rightIconIsStatus = true;
+                        rightIconIsPremium = false;
+                        nameTextView[a].setRightDrawable(getBadgeDrawable(profileBadge, false, a));
+                        nameTextViewRightDrawableContentDescription = profileBadge.getText();
+                        nameTextView[a].setRightDrawableOnClick(v -> BadgesController.INSTANCE.showBadgeBulletin(ProfileActivity.this, profileBadge, user, resourcesProvider, currentAccount));
                     } else if (user != null/* && !getMessagesController().premiumFeaturesBlocked()*/ && !MessagesController.isSupportUser(user) && (DialogObject.getEmojiStatusDocumentId(user.emoji_status) != 0 || (user.self && selfEmojiDocId != null && selfEmojiDocId != 0))) {
                         rightIconIsStatus = true;
                         rightIconIsPremium = false;
@@ -11977,12 +11993,26 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         nameTextView[a].setRightDrawable2(null);
                     }
                     Long selfEmojiDocId2 = (user != null && user.self) ? UserObject.getEmojiStatusDocumentId(user) : null;
-                    BadgeDTO userBadge2 = BadgesController.INSTANCE.getBadge(user);
-                    if (userBadge2 != null) {
+                    if (profileBadge != null && getMessagesController().isPremiumUser(user)) {
                         rightIconIsStatus = true;
                         rightIconIsPremium = false;
-                        nameTextView[a].setRightDrawable(getBadgeDrawable(userBadge2, true, a));
-                        nameTextViewRightDrawableContentDescription = userBadge2.getText();
+                        if (user.self && selfEmojiDocId2 != null && selfEmojiDocId2 != 0 && DialogObject.getEmojiStatusDocumentId(user.emoji_status) == 0) {
+                            TLRPC.TL_emojiStatus status = new TLRPC.TL_emojiStatus();
+                            status.document_id = selfEmojiDocId2;
+                            nameTextView[a].setRightDrawable(getEmojiStatusDrawable(status, false, true, a));
+                        } else {
+                            nameTextView[a].setRightDrawable(getEmojiStatusDrawable(user.emoji_status, false, true, a));
+                        }
+                        nameTextView[a].setRightDrawable2(getBadgeDrawable(profileBadge, true, a));
+                        nameTextView[a].setRightDrawable2OnClick(v -> BadgesController.INSTANCE.showBadgeBulletin(ProfileActivity.this, profileBadge, user, resourcesProvider, currentAccount));
+                        nameTextViewRightDrawable2ContentDescription = profileBadge.getText();
+                        nameTextViewRightDrawableContentDescription = LocaleController.getString(R.string.AccDescrPremium);
+                    } else if (profileBadge != null) {
+                        rightIconIsStatus = true;
+                        rightIconIsPremium = false;
+                        nameTextView[a].setRightDrawable(getBadgeDrawable(profileBadge, true, a));
+                        nameTextViewRightDrawableContentDescription = profileBadge.getText();
+                        nameTextView[a].setRightDrawableOnClick(v -> BadgesController.INSTANCE.showBadgeBulletin(ProfileActivity.this, profileBadge, user, resourcesProvider, currentAccount));
                     } else if (/*!getMessagesController().premiumFeaturesBlocked() && */user != null && !MessagesController.isSupportUser(user) && (DialogObject.getEmojiStatusDocumentId(user.emoji_status) != 0 || (user.self && selfEmojiDocId2 != null && selfEmojiDocId2 != 0))) {
                         rightIconIsStatus = true;
                         rightIconIsPremium = false;
@@ -12004,6 +12034,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         nameTextViewRightDrawableContentDescription = null;
                     }
                 }
+                if (user.self && profileBadge != null && getMessagesController().isPremiumUser(user)) {
+                    nameTextView[a].setRightDrawableOnClick(v -> showStatusSelect());
+                }
                 if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
                     nameTextView[a].setLeftDrawableOutside(true);
                     leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false, a);
@@ -12014,7 +12047,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (a == 1 && (rightIconIsStatus || rightIconIsPremium)) {
                     nameTextView[a].setRightDrawableOutside(true);
                 }
-                if (user.self && getMessagesController().isPremiumUser(user)) {
+                if (user.self && getMessagesController().isPremiumUser(user) && profileBadge == null) {
                     nameTextView[a].setRightDrawableOnClick(v -> {
                         showStatusSelect();
                     });
@@ -12288,9 +12321,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                     BadgeDTO chatBadge = BadgesController.INSTANCE.getBadge(chat);
                     if (chatBadge != null) {
+                        final TLRPC.Chat badgeChat = chat;
                         nameTextView[a].setRightDrawable(getBadgeDrawable(chatBadge, true, a));
                         nameTextView[a].setRightDrawableOutside(true);
                         nameTextViewRightDrawableContentDescription = chatBadge.getText();
+                        nameTextView[a].setRightDrawableOnClick(v -> BadgesController.INSTANCE.showBadgeBulletin(ProfileActivity.this, chatBadge, badgeChat, resourcesProvider, currentAccount));
                     } else if (DialogObject.getEmojiStatusDocumentId(chat.emoji_status) != 0) {
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(chat.emoji_status, true, false, a));
                         nameTextView[a].setRightDrawableOutside(true);

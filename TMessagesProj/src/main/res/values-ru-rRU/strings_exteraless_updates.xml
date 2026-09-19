@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ExteraBadgeInfoTitle">Значок проекта</string>
+    <string name="ExteraBadgeInfoMessage">Этот значок назначается командой приложения в знак признания поддержки проекта и его сообщества.</string>
+    <string name="ExteraBadgeInfoProjectRecognition">Признание проекта</string>
+    <string name="ExteraBadgeInfoProjectRecognitionText">Команда приложения назначает этот значок выбранным профилям.</string>
+    <string name="ExteraBadgeInfoVisibleProfile">Видно в профиле</string>
+    <string name="ExteraBadgeInfoVisibleProfileText">У пользователя %1$s этот значок привязан к профилю.</string>
+    <string name="ExteraBadgeInfoVisibleProfileGeneric">Этот значок привязан к профилю в базе значков.</string>
+    <string name="ExteraBadgeInfoCommunitySupport">Поддержка сообщества</string>
+    <string name="ExteraBadgeInfoCommunitySupportText">Спасибо всем, кто поддержал проект. Каждый вклад помогает сделать приложение лучше для всех.</string>
+    <string name="ExteraBadgeInfoClose">Закрыть</string>
+    <string name="ExteraUpdateTitle">Доступно обновление</string>
+    <string name="ExteraUpdateReady">Новая версия готова к установке.</string>
+    <string name="ExteraUpdateVersion">Версия %1$s</string>
+    <string name="ExteraUpdateButton">Обновить</string>
+    <string name="ExteraUpdateDownloading">Скачивание...</string>
+    <string name="ExteraUpdateLater">Позже</string>
+    <string name="ExteraUpdateDownloadFailed">Не удалось скачать обновление</string>
+    <string name="ExteraUpdateInstallerFailed">Не удалось открыть установщик пакета</string>
+    <string name="ExteraBadgeDeveloper">%1$s входит в команду разработчиков этого приложения и получил уникальный значок.</string>
+    <string name="ExteraBadgeSupporter">%1$s поддержал разработку этого приложения и получил уникальный значок.</string>
+</resources>

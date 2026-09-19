@@ -64,6 +64,9 @@ import org.telegram.ui.Stories.StoriesUtilities;
 
 import tw.nekomimi.nekogram.NekoConfig;
 
+import com.exteragram.messenger.api.dto.BadgeDTO;
+import com.exteragram.messenger.badges.BadgesController;
+
 public class UserCell extends FrameLayout implements NotificationCenter.NotificationCenterDelegate, Theme.Colorable {
 
     public BackupImageView avatarImageView;
@@ -690,7 +693,14 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
             botVerification.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));
             nameTextView.setLeftDrawable(botVerification);
         }
-        if (currentUser != null && MessagesController.getInstance(currentAccount).isPremiumUser(currentUser) && !MessagesController.getInstance(currentAccount).premiumFeaturesBlocked()) {
+        BadgeDTO badge = currentUser != null ? BadgesController.INSTANCE.getBadge(currentUser) : currentChat != null ? BadgesController.INSTANCE.getBadge(currentChat) : null;
+        if (badge != null) {
+            emojiStatus.set(badge.getDocumentId(), false);
+            emojiStatus.setParticles(true, false);
+            emojiStatus.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));
+            nameTextView.setRightDrawable(emojiStatus);
+            nameTextView.setRightDrawableTopPadding(-dp(0.5f));
+        } else if (currentUser != null && MessagesController.getInstance(currentAccount).isPremiumUser(currentUser) && !MessagesController.getInstance(currentAccount).premiumFeaturesBlocked()) {
             if (DialogObject.getEmojiStatusDocumentId(currentUser.emoji_status) != 0) {
                 emojiStatus.set(DialogObject.getEmojiStatusDocumentId(currentUser.emoji_status), false);
                 emojiStatus.setColor(Theme.getColor(Theme.key_chats_verifiedBackground, resourcesProvider));

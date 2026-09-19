@@ -42,6 +42,9 @@ import com.radolyn.ayugram.utils.LastSeenHelper;
 
 import app.exteraless.appearance.ChatHeaderUiHelper;
 
+import com.exteragram.messenger.api.dto.BadgeDTO;
+import com.exteragram.messenger.badges.BadgesController;
+
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.ChatObject;
@@ -1084,10 +1087,14 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     private boolean rightDrawableIsScam = false;
     private String rightDrawableContentDescription = null;
     private String rightDrawable2ContentDescription = null;
+    private AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable badgeDrawable;
+    private Drawable badgePreviousRightDrawable2;
+    private BadgeDTO activeBadge;
+    private boolean badgeVisible;
 
     public void setTitleIcons(Drawable leftIcon, Drawable mutedIcon) {
         titleTextView.setLeftDrawable(leftIcon);
-        if (!rightDrawableIsScamOrVerified && !rightDrawableIsScam) {
+        if (!badgeVisible && !rightDrawableIsScamOrVerified && !rightDrawableIsScam) {
             if (mutedIcon != null) {
                 rightDrawable2ContentDescription = getString(R.string.NotificationsMuted);
             } else {
@@ -1148,6 +1155,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             titleTextView.setRightDrawable2(null);
             rightDrawableIsScamOrVerified = false;
             rightDrawable2ContentDescription = null;
+        } else if (!scam && !fake && !verified) {
+            rightDrawableIsScamOrVerified = false;
+            rightDrawable2ContentDescription = null;
         }
         if (premium || DialogObject.getEmojiStatusDocumentId(emojiStatus) != 0) {
             if (titleTextView.getRightDrawable() instanceof AnimatedEmojiDrawable.WrapSizeDrawable &&
@@ -1174,6 +1184,46 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             titleTextView.setRightDrawable(null);
             rightDrawableContentDescription = null;
         }
+        if (activeBadge != null) {
+            refreshBadge(activeBadge, animated);
+        }
+        checkActionBar(animated);
+    }
+
+    public void refreshBadge(BadgeDTO badge, boolean animated) {
+        activeBadge = badge;
+        if (badge == null || rightDrawableIsScamOrVerified || rightDrawableIsScam) {
+            if (badgeVisible) {
+                badgeDrawable.set((Drawable) null, animated);
+                titleTextView.setRightDrawable2(badgePreviousRightDrawable2);
+                titleTextView.setRightDrawableOnClick(null);
+                badgePreviousRightDrawable2 = null;
+                badgeVisible = false;
+            }
+            return;
+        }
+        if (badgeDrawable == null) {
+            badgeDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(titleTextView, dp(24), AnimatedEmojiDrawable.CACHE_TYPE_EMOJI_STATUS);
+            if (isAttachedToWindow()) {
+                badgeDrawable.attach();
+            }
+        }
+        if (!badgeVisible) {
+            badgePreviousRightDrawable2 = titleTextView.getRightDrawable2();
+        }
+        badgeDrawable.set(badge.getDocumentId(), animated);
+        badgeDrawable.setParticles(true, animated);
+        badgeDrawable.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
+        titleTextView.setRightDrawable2(badgeDrawable);
+        final BadgeDTO shownBadge = badge;
+        if (parentFragment != null) {
+            if (parentFragment.getCurrentUser() != null) {
+                titleTextView.setRightDrawableOnClick(v -> BadgesController.INSTANCE.showBadgeBulletin(parentFragment, shownBadge, parentFragment.getCurrentUser(), parentFragment.getResourceProvider(), currentAccount));
+            } else if (parentFragment.getCurrentChat() != null) {
+                titleTextView.setRightDrawableOnClick(v -> BadgesController.INSTANCE.showBadgeBulletin(parentFragment, shownBadge, parentFragment.getCurrentChat(), parentFragment.getResourceProvider(), currentAccount));
+            }
+        }
+        badgeVisible = true;
         checkActionBar(animated);
     }
 
@@ -1733,6 +1783,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         if (botVerificationDrawable != null) {
             botVerificationDrawable.attach();
         }
+        if (badgeDrawable != null && badgeVisible) {
+            badgeDrawable.attach();
+        }
     }
 
     @Override
@@ -1744,6 +1797,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         }
         if (botVerificationDrawable != null) {
             botVerificationDrawable.detach();
+        }
+        if (badgeDrawable != null) {
+            badgeDrawable.detach();
         }
     }
 

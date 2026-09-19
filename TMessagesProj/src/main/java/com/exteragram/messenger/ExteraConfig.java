@@ -96,6 +96,20 @@ public final class ExteraConfig {
         return new MappedEditor(getPreferences().edit());
     }
 
+    public static String getBadgeApiUrl() {
+        String value = getPreferences().getString("badgeApiUrl", "");
+        return value == null || value.trim().isEmpty() ? "https://eivipfylearxmefvfhkx.supabase.co" : value;
+    }
+
+    public static String getBadgeApiKey() {
+        String value = getPreferences().getString("badgeApiKey", "");
+        return value == null || value.trim().isEmpty() ? "sb_publishable_FH9iwj8u5h3cW1WVd2maiA_M_-mLyKp" : value;
+    }
+
+    public static void setBadgeApi(String url, String anonKey) {
+        getEditor().putString("badgeApiUrl", url).putString("badgeApiKey", anonKey).apply();
+    }
+
     public static Gson getGSON() {
         return GSON;
     }

@@ -135,6 +135,9 @@ import org.telegram.ui.Stories.StoriesListPlaceProvider;
 import org.telegram.ui.Stories.StoriesUtilities;
 import org.telegram.ui.Stories.StoryViewer;
 import org.telegram.ui.community.CommunityArrowDrawable;
+
+import com.exteragram.messenger.api.dto.BadgeDTO;
+import com.exteragram.messenger.badges.BadgesController;
 import org.telegram.ui.community.CommunitySheet;
 
 import java.util.ArrayList;
@@ -1534,6 +1537,13 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                         } else if (chat.fake) {
                             drawScam = 2;
                             Theme.dialogs_fakeDrawable.checkText();
+                        } else if (BadgesController.INSTANCE.getBadge(chat) != null) {
+                            BadgeDTO badge = BadgesController.INSTANCE.getBadge(chat);
+                            drawPremium = true;
+                            nameLayoutEllipsizeByGradient = true;
+                            emojiStatus.center = LocaleController.isRTL;
+                            emojiStatus.set(badge.getDocumentId(), false);
+                            emojiStatus.setParticles(true, false);
                         } else if (DialogObject.getEmojiStatusDocumentId(chat.emoji_status) != 0) {
                             drawPremium = true;
                             nameLayoutEllipsizeByGradient = true;
@@ -1556,9 +1566,16 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                             drawVerified = !forbidVerified && user.verified;
                             drawBotVerified = !forbidVerified && !UserObject.isUserSelf(user) && user.bot_verification_icon != 0;
                         }
-                        drawPremium = MessagesController.getInstance(currentAccount).isPremiumUser(user) && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0;
-                        if (drawPremium) {
-                            Long emojiStatusId = UserObject.getEmojiStatusDocumentId(user);
+                        BadgeDTO badge = BadgesController.INSTANCE.getBadge(user);
+                        drawPremium = badge != null || MessagesController.getInstance(currentAccount).isPremiumUser(user) && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0;
+                        if (badge != null) {
+                            nameLayoutEllipsizeByGradient = true;
+                            emojiStatus.center = LocaleController.isRTL;
+                            emojiStatus.set(badge.getDocumentId(), false);
+                            emojiStatus.setParticles(true, false);
+                        }
+                        if (drawPremium && badge == null) {
+                            Long emojiStatusId = badge == null ? UserObject.getEmojiStatusDocumentId(user) : null;
                             emojiStatus.center = LocaleController.isRTL;
                             if (emojiStatusId != null) {
                                 nameLayoutEllipsizeByGradient = true;

@@ -1,21 +1,40 @@
 {
   "project_info": {
-    "project_number": "335004274031",
-    "project_id": "exteraless",
-    "storage_bucket": "exteraless.firebasestorage.app"
+    "project_number": "130582632440",
+    "project_id": "xxtg-820a8",
+    "storage_bucket": "xxtg-820a8.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:335004274031:android:e06325b96c4b17732eac9a",
+        "mobilesdk_app_id": "1:130582632440:android:36dccdb6b459400898e80d",
         "android_client_info": {
-          "package_name": "com.exteraless.app"
+          "package_name": "com.de.xxtg"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBuCdqzdLtlstYvdiSnVJmVoxusxFKlabc"
+          "current_key": "AIzaSyDlWLnWSZav8JdQIxaGGSTc3B4T-B5LddI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:130582632440:android:9f4555fa38f55c2b98e80d",
+        "android_client_info": {
+          "package_name": "com.de.xxtg.beta"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlWLnWSZav8JdQIxaGGSTc3B4T-B5LddI"
         }
       ],
       "services": {

@@ -13,6 +13,8 @@ import app.exteraless.feed.FeedChannelAvatarMenu;
 import app.exteraless.feed.FeedChatIntegration;
 import app.exteraless.feed.FeedController;
 import app.exteraless.feed.FeedMessageUtils;
+import com.exteragram.messenger.api.dto.BadgeDTO;
+import com.exteragram.messenger.badges.BadgesController;
 import app.exteraless.appearance.AppearanceConfig;
 import app.exteraless.chats.ChatsConfig;
 import app.exteraless.components.ActionRow;
@@ -20852,6 +20854,10 @@ public class ChatActivity extends BaseFragment implements
         }
         setParentActivityTitle(avatarContainer.getTitleTextView().getText());
         updateTitleIcons();
+        BadgeDTO titleBadge = currentChat != null
+                ? BadgesController.INSTANCE.getBadge(currentChat)
+                : currentUser != null ? BadgesController.INSTANCE.getBadge(currentUser) : null;
+        avatarContainer.refreshBadge(titleBadge, animated);
     }
 
     public void updateTopicTitleIcon() {

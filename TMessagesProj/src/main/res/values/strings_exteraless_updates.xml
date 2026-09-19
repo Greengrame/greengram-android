@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ExteraBadgeInfoTitle">Contribution Badge</string>
+    <string name="ExteraBadgeInfoMessage">This badge is assigned by the app team to recognize support for the project and its community.</string>
+    <string name="ExteraBadgeInfoProjectRecognition">Project recognition</string>
+    <string name="ExteraBadgeInfoProjectRecognitionText">The app team assigns this badge to selected profiles.</string>
+    <string name="ExteraBadgeInfoVisibleProfile">Visible on the profile</string>
+    <string name="ExteraBadgeInfoVisibleProfileText">%1$s has this badge linked to their profile.</string>
+    <string name="ExteraBadgeInfoVisibleProfileGeneric">The badge is linked to this profile in our badge database.</string>
+    <string name="ExteraBadgeInfoCommunitySupport">Community support</string>
+    <string name="ExteraBadgeInfoCommunitySupportText">Thanks to everyone who supported the project. Every contribution helps make the app better for everyone.</string>
+    <string name="ExteraBadgeInfoClose">Close</string>
+    <string name="ExteraUpdateTitle">Update available</string>
+    <string name="ExteraUpdateReady">A new version is ready to install.</string>
+    <string name="ExteraUpdateVersion">Version %1$s</string>
+    <string name="ExteraUpdateButton">Update</string>
+    <string name="ExteraUpdateDownloading">Downloading...</string>
+    <string name="ExteraUpdateLater">Later</string>
+    <string name="ExteraUpdateDownloadFailed">Update download failed</string>
+    <string name="ExteraUpdateInstallerFailed">Cannot open package installer</string>
+    <string name="ExteraBadgeDeveloper">%1$s is a member of this app development team and received a unique badge.</string>
+    <string name="ExteraBadgeSupporter">%1$s supported the development of this app and received a unique badge.</string>
+</resources>

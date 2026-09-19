@@ -26,7 +26,7 @@ def buildTimestamp = System.getenv('BUILD_TIMESTAMP') ?: '0'
 def commitId = System.getenv('COMMIT_ID')
 def shortCommit = commitId?.take(7) ?: ''
 def verName = "${APP_VERSION_NAME}${shortCommit ? "-${shortCommit}" : ''}"
-def verCode = 1261
+def verCode = 1264
 
 def officialVer = APP_VERSION_NAME
 def officialCode = APP_VERSION_CODE
@@ -73,6 +73,10 @@ if (nativeTarget == 'SKIP') {
 
 android {
     defaultConfig.applicationId = APP_PACKAGE
+
+    buildFeatures {
+        resValues true
+    }
 
     androidResources {
         localeFilters += [
@@ -129,6 +133,7 @@ android {
     }
 
     defaultConfig {
+        resValue 'string', 'AccountType', APP_PACKAGE
         versionName verName
         versionCode verCode
 
@@ -154,8 +159,8 @@ android {
         }
 
         // obtain your own keys at https://core.telegram.org/api/obtaining_api_id
-        def appId = '6'
-        def appHash = 'eb06d4abfb49dc3eeb1aeb98ae0f581e'
+        def appId = '39691309'
+        def appHash = '25668d172cbcd1107e7317235d6f2f8e'
 
         // obtain your own key at https://developers.google.com/maps/documentation/android-sdk/get-api-key
         // Android keys are restricted by package name and signing certificate,
@@ -243,6 +248,8 @@ android {
             debuggable = true
             jniDebuggable = true
             multiDexEnabled = true
+            applicationIdSuffix '.beta'
+            resValue 'string', 'AccountType', APP_PACKAGE + '.beta'
             signingConfig = hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
         }
 
@@ -277,7 +284,7 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.outputs.forEach { output ->
-            String gramName = 'exteraless'
+            String gramName = variant.name.toLowerCase().contains('debug') ? 'LibreTGB' : 'LibreTG'
             String first = String.format('%s-v%s(%s)', gramName, verName, verCode)
             output.outputFileName.set(
                 output.outputFileName.get()

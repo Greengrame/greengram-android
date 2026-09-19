@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:libre="https://tg.upd.dexx.moe/rss">
+    <channel>
+        <title>LibreTG Updates</title>
+        <link>https://tg.upd.dexx.moe/changelog.xml</link>
+        <description>Release notes for LibreTG and LibreTGB.</description>
+        <item>
+            <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.4</title>
+            <description><![CDATA[Fixed profile badge interactions, added LibreTG branding, and improved update delivery.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1264</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.4</title>
+            <description><![CDATA[Исправлено взаимодействие со значками профиля, добавлен брендинг LibreTG и улучшена доставка обновлений.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1264-ru</guid>
+        </item>
+    </channel>
+</rss>

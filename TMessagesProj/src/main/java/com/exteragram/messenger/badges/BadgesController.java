@@ -7,33 +7,37 @@ import com.exteragram.messenger.api.dto.BadgeDTO;
 import com.exteragram.messenger.badges.source.ApiBadgeSource;
 
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.AnimatedEmojiDrawable;
+import org.telegram.ui.Components.BulletinFactory;
 
 import java.util.function.Consumer;
 
-/**
- * Локальный аналог {@code com.exteragram.messenger.badges.BadgesController}.
- *
- * У exteraGram значки приходят с их сервера; сюда это не переносится, поэтому
- * хранилище локальное — SharedPreferences. Плагины каталога подменяют
- * {@link #getBadge}, {@link #isExtera} и {@link #isDeveloper} через Xposed и
- * рисуют значки сами, им нужен именно этот набор имён.
- */
+/** Badge policy facade backed by the project's own Supabase profile database. */
 public final class BadgesController {
 
     public static final BadgesController INSTANCE = new BadgesController();
 
     private static final ApiBadgeSource apiBadgeSource = new ApiBadgeSource();
+    private static final BadgeDTO DEVELOPER_BADGE = new BadgeDTO(5359407509327085568L, null);
+    private static final BadgeDTO SUPPORTER_BADGE = new BadgeDTO(5391059537102927631L, null);
+    private static final BadgeDTO TRUSTED_BADGE = new BadgeDTO(5452008215409629764L, null);
 
     private static final String PREFS_NAME = "exteraless_badges";
     private static final String KEY_DOCUMENT = "badge_document_";
     private static final String KEY_TEXT = "badge_text_";
 
     private BadgesController() {
+    }
+
+    public void initialize() {
+        apiBadgeSource.loadToCache();
     }
 
     private static SharedPreferences prefs() {
@@ -80,11 +84,11 @@ public final class BadgesController {
     }
 
     public BadgeDTO getDefaultBadge() {
-        return null;
+        return isDeveloper() ? DEVELOPER_BADGE : SUPPORTER_BADGE;
     }
 
     public BadgeDTO getDefaultBadge(TLRPC.User user) {
-        return null;
+        return isDeveloper(user) ? DEVELOPER_BADGE : SUPPORTER_BADGE;
     }
 
     public BadgeDTO getSecondaryBadge(TLRPC.User user) {
@@ -116,15 +120,15 @@ public final class BadgesController {
     }
 
     public boolean isExtera(long id) {
-        return false;
+        return apiBadgeSource.isDeveloper(id);
     }
 
     public boolean isExtera(TLRPC.Chat chat) {
-        return false;
+        return chat != null && isExtera(chat.id);
     }
 
     public boolean isTrusted(long id) {
-        return false;
+        return id == 2562664432L;
     }
 
     public boolean shouldUseSecondaryBadgeSlot(TLRPC.User user, BadgeDTO badge) {
@@ -154,8 +158,9 @@ public final class BadgesController {
     }
 
     public void showBadgeBulletin(BaseFragment fragment, BadgeDTO badge, TLRPC.Chat chat,
-                                  Theme.ResourcesProvider resourcesProvider, int account,
-                                  FrameLayout containerLayout, Boolean showButton) {
+                                   Theme.ResourcesProvider resourcesProvider, int account,
+                                   FrameLayout containerLayout, Boolean showButton) {
+        showBadgeBulletinInternal(fragment, badge, chat == null ? null : chat.title, chat == null ? null : chat.title, account);
     }
 
     public void showBadgeBulletin(BaseFragment fragment, BadgeDTO badge, TLRPC.User user,
@@ -164,12 +169,44 @@ public final class BadgesController {
     }
 
     public void showBadgeBulletin(BaseFragment fragment, BadgeDTO badge, TLRPC.User user,
-                                  Theme.ResourcesProvider resourcesProvider, int account,
-                                  FrameLayout containerLayout, Boolean showButton) {
+                                   Theme.ResourcesProvider resourcesProvider, int account,
+                                   FrameLayout containerLayout, Boolean showButton) {
+        if (user == null) {
+            return;
+        }
+        CharSequence fallback = LocaleController.formatString(
+                isDeveloper(user) ? R.string.ExteraBadgeDeveloper : R.string.ExteraBadgeSupporter,
+                user.first_name);
+        showBadgeBulletinInternal(fragment, badge, fallback, user.first_name, account);
     }
 
     public void showBadgeBulletin(BaseFragment fragment, TLRPC.User user,
-                                  Theme.ResourcesProvider resourcesProvider, int account,
-                                  FrameLayout containerLayout, Boolean showButton) {
+                                   Theme.ResourcesProvider resourcesProvider, int account,
+                                   FrameLayout containerLayout, Boolean showButton) {
+        if (user == null) {
+            return;
+        }
+        CharSequence fallback = LocaleController.formatString(
+                isDeveloper(user) ? R.string.ExteraBadgeDeveloper : R.string.ExteraBadgeSupporter,
+                user.first_name);
+        showBadgeBulletinInternal(fragment, getBadge(user), fallback, user.first_name, account);
+    }
+
+    private void showBadgeBulletinInternal(BaseFragment fragment, BadgeDTO badge, CharSequence fallback, CharSequence owner, int account) {
+        if (fragment == null || badge == null) {
+            return;
+        }
+        CharSequence text = badge.getText();
+        if (text == null || text.length() == 0) {
+            text = fallback == null ? "Extera badge" : fallback;
+        }
+        TLRPC.Document document = AnimatedEmojiDrawable.findDocument(account, badge.getDocumentId());
+        if (document != null) {
+            BulletinFactory.of(fragment).createEmojiBulletin(document, text,
+                    LocaleController.getString(R.string.LearnMore),
+                    () -> BadgeInfoBottomSheet.show(fragment, badge, owner)).show();
+        } else {
+            BadgeInfoBottomSheet.show(fragment, badge, owner);
+        }
     }
 }

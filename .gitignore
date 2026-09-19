@@ -27,3 +27,11 @@ replay_pid*.log
 TMessagesProj/release.keystore
 TMessagesProj/release/
 tests/local/
+
+# Local Supabase CLI state
+supabase/.temp/
+
+# Local IDE and APK artifacts
+.vs/
+*.apk
+.wrangler/

@@ -1,4 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import groovy.json.JsonOutput
+import java.security.MessageDigest
 
 buildscript {
     repositories {
@@ -53,3 +55,110 @@ subprojects {
         }
     }
 }
+
+def runPublishCommand = { File workingDirectory, List<String> arguments ->
+    boolean windows = System.getProperty('os.name').toLowerCase().contains('windows')
+    List<String> command = new ArrayList<String>()
+    if (windows) {
+        command.add('cmd.exe')
+        command.add('/c')
+    }
+    command.addAll(arguments.collect { it.toString() } as List<String>)
+    Process process = new ProcessBuilder(command)
+            .directory(workingDirectory)
+            .redirectErrorStream(true)
+            .start()
+    process.inputStream.withReader { reader ->
+        reader.eachLine { line -> logger.lifecycle(line) }
+    }
+    int exitCode = process.waitFor()
+    if (exitCode != 0) {
+        throw new GradleException("Command failed with exit code ${exitCode}: ${command.join(' ')}")
+    }
+}
+
+def registerUpdatePublisher = { String taskName, String variant, String assembleTask, String packageName, String apkKey, String manifestKey ->
+    tasks.register(taskName) {
+        group = 'publishing'
+        description = "Builds the ${variant} APK, uploads it to R2 and deploys the update Worker."
+        dependsOn(assembleTask)
+
+        doLast {
+            File apkDirectory = file("TMessagesProj/build/outputs/apk/${variant}")
+            String apkSuffix = variant == 'debug' ? '-debug.apk' : '.apk'
+            File[] apkFiles = apkDirectory.listFiles({ File candidate ->
+                candidate.isFile() && candidate.name.endsWith(apkSuffix)
+            } as FileFilter)
+            if (apkFiles == null || apkFiles.length == 0) {
+                throw new GradleException("No ${variant} APK found in ${apkDirectory}")
+            }
+
+            File apk = apkFiles.max { it.lastModified() }
+            String versionPattern = variant == 'debug'
+                    ? '^(.+)-v(.+)\\((\\d+)\\)-debug\\.apk$'
+                    : '^(.+)-v(.+)\\((\\d+)\\)\\.apk$'
+            def versionMatcher = (apk.name =~ versionPattern)
+            if (!versionMatcher.matches()) {
+                throw new GradleException("Unexpected ${variant} APK name: ${apk.name}")
+            }
+
+            String artifactName = versionMatcher.group(1)
+            String versionName = versionMatcher.group(2)
+            int versionCode = Integer.parseInt(versionMatcher.group(3))
+            MessageDigest digest = MessageDigest.getInstance('SHA-256')
+            apk.withInputStream { input ->
+                byte[] buffer = new byte[8192]
+                int count
+                while ((count = input.read(buffer)) >= 0) {
+                    digest.update(buffer, 0, count)
+                }
+            }
+            String sha256 = digest.digest().collect { String.format('%02x', it & 0xff) }.join()
+
+            File workerDirectory = file('updates-worker')
+            File changelog = file('updates-worker/changelog.xml')
+            File manifestFile = file("updates-worker/manifests/${manifestKey}.json")
+            if (!workerDirectory.isDirectory() || !changelog.isFile()) {
+                throw new GradleException('updates-worker is missing')
+            }
+
+            Map<String, Object> manifest = [
+                    packageName: packageName,
+                    versionCode: versionCode,
+                    versionName: versionName,
+                    title: "${artifactName} ${versionName}",
+                    releaseNotes: 'Release notes are available in the changelog.',
+                    apkUrl: "https://tg-updates.rtstaller1.workers.dev/${apkKey}",
+                    sha256: sha256,
+                    mandatory: false
+            ]
+            manifestFile.parentFile.mkdirs()
+            manifestFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(manifest)) + System.lineSeparator(), 'UTF-8')
+
+            String npx = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npx.cmd' : 'npx'
+            runPublishCommand(workerDirectory, [npx, 'wrangler', 'r2', 'object', 'put', "tg-updates/${apkKey}",
+                    '--file', apk.absolutePath,
+                    '--content-type', 'application/vnd.android.package-archive',
+                    '--cache-control', 'no-cache', '--remote', '-y'])
+            runPublishCommand(workerDirectory, [npx, 'wrangler', 'r2', 'object', 'put', "tg-updates/manifests/${manifestKey}.json",
+                    '--file', manifestFile.absolutePath,
+                    '--content-type', 'application/json; charset=utf-8',
+                    '--cache-control', 'no-cache', '--remote', '-y'])
+            runPublishCommand(workerDirectory, [npx, 'wrangler', 'r2', 'object', 'put', 'tg-updates/changelog.xml',
+                    '--file', changelog.absolutePath,
+                    '--content-type', 'application/rss+xml; charset=utf-8',
+                    '--cache-control', 'no-cache', '--remote', '-y'])
+            runPublishCommand(workerDirectory, [npx, 'wrangler', 'deploy'])
+
+            project.copy {
+                from(apk)
+                into(project.rootDir)
+                rename { "${artifactName}-${packageName}-${variant}.apk" }
+            }
+            logger.lifecycle("Published ${packageName} ${versionName} (${versionCode}), SHA256 ${sha256}")
+        }
+    }
+}
+
+registerUpdatePublisher('publishDebugUpdate', 'debug', ':TMessagesProj:assembleDebug', 'com.de.xxtg.beta', 'app-beta.apk', 'beta')
+registerUpdatePublisher('publishReleaseUpdate', 'release', ':TMessagesProj:assembleRelease', 'com.de.xxtg', 'app-release.apk', 'release')
