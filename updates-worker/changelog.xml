@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.6</title>
+            <description><![CDATA[Fixed custom badge text for role-based badges.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1266</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.6</title>
+            <description><![CDATA[Исправлено отображение собственного текста у ролевых значков.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1266-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.5</title>
             <description><![CDATA[Badge data now refreshes when returning to the app, without waiting for the periodic sync interval.]]></description>
             <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>

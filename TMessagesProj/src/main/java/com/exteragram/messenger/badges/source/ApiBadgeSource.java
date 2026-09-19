@@ -185,9 +185,17 @@ public final class ApiBadgeSource {
             } catch (IllegalArgumentException ignored) {
                 status = ProfileStatus.DEFAULT;
             }
-            BadgeDTO badge = profile.badge_document_id == null
-                    ? null
-                    : new BadgeDTO(profile.badge_document_id, profile.badge_text);
+            long documentId;
+            if (profile.badge_document_id != null) {
+                documentId = profile.badge_document_id;
+            } else if (status == ProfileStatus.DEVELOPER) {
+                documentId = DEVELOPER_BADGE_DOCUMENT_ID;
+            } else if (status == ProfileStatus.SUPPORTER) {
+                documentId = SUPPORTER_BADGE_DOCUMENT_ID;
+            } else {
+                documentId = 0;
+            }
+            BadgeDTO badge = documentId == 0 ? null : new BadgeDTO(documentId, profile.badge_text);
             cache.put(profile.id, new BadgeInfo(badge, status, Boolean.TRUE.equals(profile.canChangeBadge)));
         }
     }
