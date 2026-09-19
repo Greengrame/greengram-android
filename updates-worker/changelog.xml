@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.8 - TEST UPDATE</title>
+            <description><![CDATA[TEST UPDATE: if you can read this in the update dialog, the main release auto-update works.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1268-test</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.8 - ТЕСТОВОЕ ОБНОВЛЕНИЕ</title>
+            <description><![CDATA[ТЕСТОВОЕ ОБНОВЛЕНИЕ: если ты видишь этот текст, автообновление main release работает.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1268-test-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.7</title>
             <description><![CDATA[Improved release update detection and badge refresh timing.]]></description>
             <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
