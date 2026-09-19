@@ -26,6 +26,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -75,20 +76,28 @@ public final class AppUpdateController {
                     return;
                 }
                 final UpdateInfo updateInfo = info;
-                AndroidUtilities.runOnUIThread(() -> {
-                    BaseFragment fragment = LaunchActivity.getSafeLastFragment();
-                    if (fragment != null) {
-                        AppUpdateBottomSheet.show(fragment, updateInfo);
-                    }
-                });
+                showUpdateWhenReady(updateInfo, 0);
             } catch (Throwable e) {
                 FileLog.e("Update check failed", e);
             }
         });
     }
 
+    private static void showUpdateWhenReady(UpdateInfo info, int attempt) {
+        AndroidUtilities.runOnUIThread(() -> {
+            BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+            if (fragment != null) {
+                AppUpdateBottomSheet.show(fragment, info);
+            } else if (attempt < 10) {
+                showUpdateWhenReady(info, attempt + 1);
+            }
+        }, attempt == 0 ? 0 : 1000L);
+    }
+
     private static UpdateInfo loadManifest(String manifestUrl, String packageName, String language) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(manifestUrl).openConnection();
+        String separator = manifestUrl.contains("?") ? "&" : "?";
+        String requestUrl = manifestUrl + separator + "package=" + URLEncoder.encode(packageName, "UTF-8");
+        HttpURLConnection connection = (HttpURLConnection) new URL(requestUrl).openConnection();
         connection.setConnectTimeout(8000);
         connection.setReadTimeout(10000);
         connection.setRequestProperty("Accept", "application/json");

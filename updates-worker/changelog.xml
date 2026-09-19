@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.7</title>
+            <description><![CDATA[Improved release update detection and badge refresh timing.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1267</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.7</title>
+            <description><![CDATA[Улучшено обнаружение обновлений release-версии и время обновления значков.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1267-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.6</title>
             <description><![CDATA[Fixed custom badge text for role-based badges.]]></description>
             <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
