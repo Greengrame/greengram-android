@@ -68,6 +68,10 @@
   @com.google.gson.annotations.SerializedName <fields>;
 }
 
+# The update manifest is parsed by Gson without SerializedName annotations.
+-keep class app.exteraless.updates.AppUpdateController { *; }
+-keep class app.exteraless.updates.AppUpdateController$UpdateInfo { *; }
+
 # okhttp crashes on Android 16
 -keep class okhttp3.internal.idn.IdnaMappingTable { *; }
 -keep class okhttp3.internal.idn.IdnaMappingTableInstanceKt{ *; }

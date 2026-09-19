@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.9 - TEST UPDATE</title>
+            <description><![CDATA[TEST UPDATE: release Gson/R8 handling is fixed.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1269-r8</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.9 - ТЕСТОВОЕ ОБНОВЛЕНИЕ</title>
+            <description><![CDATA[ТЕСТОВОЕ ОБНОВЛЕНИЕ: исправлена обработка updater в release-сборке через Gson/R8.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1269-r8-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.8 - TEST UPDATE</title>
             <description><![CDATA[TEST UPDATE: if you can read this in the update dialog, the main release auto-update works.]]></description>
             <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
