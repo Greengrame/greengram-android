@@ -1,10 +1,10 @@
 {
     "packageName": "com.de.xxtg.beta",
-    "versionCode": 1264,
-    "versionName": "12.10.4",
-    "title": "LibreTGB 12.10.4",
+    "versionCode": 1265,
+    "versionName": "12.10.5",
+    "title": "LibreTGB 12.10.5",
     "releaseNotes": "Release notes are available in the changelog.",
     "apkUrl": "https://tg-updates.rtstaller1.workers.dev/app-beta.apk",
-    "sha256": "2cefcf2d4bf21628cc89720e36c72c32c7cc243514fee6cc96ad53134292bbac",
+    "sha256": "e32e77889a4003afe59d15384d665ced7a633990c20ae53421a5b19619fc9cb1",
     "mandatory": false
 }

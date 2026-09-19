@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.5</title>
+            <description><![CDATA[Badge data now refreshes when returning to the app, without waiting for the periodic sync interval.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1265</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.5</title>
+            <description><![CDATA[Данные значков теперь обновляются при возврате в приложение, без ожидания периодической синхронизации.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1265-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.4</title>
             <description><![CDATA[Fixed profile badge interactions, added LibreTG branding, and improved update delivery.]]></description>
             <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>

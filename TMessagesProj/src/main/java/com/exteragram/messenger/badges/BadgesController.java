@@ -40,6 +40,10 @@ public final class BadgesController {
         apiBadgeSource.loadToCache();
     }
 
+    public void refresh() {
+        apiBadgeSource.refresh();
+    }
+
     private static SharedPreferences prefs() {
         return ApplicationLoader.applicationContext.getSharedPreferences(PREFS_NAME, 0);
     }

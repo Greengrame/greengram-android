@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Remote profile source with a persistent SharedPreferences cache. */
 public final class ApiBadgeSource {
@@ -33,6 +34,7 @@ public final class ApiBadgeSource {
     private static final long SYNC_INTERVAL = 10 * 60 * 1000L;
     private static final Gson GSON = new Gson();
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private final AtomicBoolean syncInProgress = new AtomicBoolean();
 
     private final ConcurrentHashMap<Long, BadgeInfo> cache = new ConcurrentHashMap<>();
 
@@ -90,7 +92,19 @@ public final class ApiBadgeSource {
             }
         }
         if (!hasCache || System.currentTimeMillis() - ExteraConfig.getPreferences().getLong(SYNC_KEY, 0L) >= SYNC_INTERVAL) {
-            EXECUTOR.execute(this::sync);
+            refresh();
+        }
+    }
+
+    public void refresh() {
+        if (syncInProgress.compareAndSet(false, true)) {
+            EXECUTOR.execute(() -> {
+                try {
+                    sync();
+                } finally {
+                    syncInProgress.set(false);
+                }
+            });
         }
     }
 

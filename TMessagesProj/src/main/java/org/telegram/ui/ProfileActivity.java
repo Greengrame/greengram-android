@@ -9909,6 +9909,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        BadgesController.INSTANCE.refresh();
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onResume();
         }
