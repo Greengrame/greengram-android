@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.11</title>
+            <description><![CDATA[Badge improvements and update stability fixes.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1271</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.11</title>
+            <description><![CDATA[Улучшения значков и исправления стабильности автообновлений.]]></description>
+            <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1271-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.10 - TEST UPDATE</title>
             <description><![CDATA[TEST UPDATE: this dialog was delivered automatically to the main release channel.]]></description>
             <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>

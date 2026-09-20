@@ -12,11 +12,13 @@ public final class BadgeInfo {
     private final BadgeDTO badge;
     private final ProfileStatus status;
     private final boolean canChangeBadge;
+    private final boolean showBadgeButton;
 
-    public BadgeInfo(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge) {
+    public BadgeInfo(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton) {
         this.badge = badge;
         this.status = status;
         this.canChangeBadge = canChangeBadge;
+        this.showBadgeButton = showBadgeButton;
     }
 
     public BadgeDTO getBadge() {
@@ -31,8 +33,12 @@ public final class BadgeInfo {
         return canChangeBadge;
     }
 
-    public BadgeInfo copy(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge) {
-        return new BadgeInfo(badge, status, canChangeBadge);
+    public boolean getShowBadgeButton() {
+        return showBadgeButton;
+    }
+
+    public BadgeInfo copy(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton) {
+        return new BadgeInfo(badge, status, canChangeBadge, showBadgeButton);
     }
 
     @Override
@@ -45,19 +51,21 @@ public final class BadgeInfo {
         }
         BadgeInfo info = (BadgeInfo) other;
         return canChangeBadge == info.canChangeBadge
+                && showBadgeButton == info.showBadgeButton
                 && Objects.equals(badge, info.badge)
                 && status == info.status;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(badge, status, canChangeBadge);
+        return Objects.hash(badge, status, canChangeBadge, showBadgeButton);
     }
 
     @NonNull
     @Override
     public String toString() {
         return "BadgeInfo(badge=" + badge + ", status=" + status
-                + ", canChangeBadge=" + canChangeBadge + ")";
+                + ", canChangeBadge=" + canChangeBadge
+                + ", showBadgeButton=" + showBadgeButton + ")";
     }
 }

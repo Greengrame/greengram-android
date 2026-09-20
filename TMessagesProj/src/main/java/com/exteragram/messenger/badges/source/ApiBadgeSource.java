@@ -65,6 +65,11 @@ public final class ApiBadgeSource {
         return info != null && (info.getCanChangeBadge() || isDeveloper(id));
     }
 
+    public boolean shouldShowBadgeButton(long id) {
+        BadgeInfo info = cache.get(id);
+        return info != null && info.getShowBadgeButton();
+    }
+
     public BadgeInfo getInfo(long id) {
         return cache.get(id);
     }
@@ -118,7 +123,7 @@ public final class ApiBadgeSource {
             String endpoint = base.endsWith("/rest/v1")
                     ? base + "/profiles"
                     : (base.endsWith("/") ? base : base + "/") + "rest/v1/profiles";
-            connection = (HttpURLConnection) new URL(endpoint + "?select=id,type,status,badge_document_id,badge_text,can_change_badge,deleted,updated_at&deleted=eq.false").openConnection();
+            connection = (HttpURLConnection) new URL(endpoint + "?select=id,type,status,badge_document_id,badge_text,can_change_badge,show_badge_button,deleted,updated_at&deleted=eq.false").openConnection();
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(15000);
             connection.setRequestProperty("Accept", "application/json");
@@ -196,7 +201,7 @@ public final class ApiBadgeSource {
                 documentId = 0;
             }
             BadgeDTO badge = documentId == 0 ? null : new BadgeDTO(documentId, profile.badge_text);
-            cache.put(profile.id, new BadgeInfo(badge, status, Boolean.TRUE.equals(profile.canChangeBadge)));
+            cache.put(profile.id, new BadgeInfo(badge, status, Boolean.TRUE.equals(profile.canChangeBadge), Boolean.TRUE.equals(profile.show_badge_button)));
         }
     }
 
@@ -207,6 +212,7 @@ public final class ApiBadgeSource {
         Long badge_document_id;
         String badge_text;
         Boolean canChangeBadge;
+        Boolean show_badge_button;
         Boolean deleted;
     }
 }

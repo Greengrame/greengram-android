@@ -6,6 +6,7 @@ import android.widget.FrameLayout;
 import com.exteragram.messenger.api.dto.BadgeDTO;
 import com.exteragram.messenger.badges.source.ApiBadgeSource;
 
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
@@ -164,7 +165,8 @@ public final class BadgesController {
     public void showBadgeBulletin(BaseFragment fragment, BadgeDTO badge, TLRPC.Chat chat,
                                    Theme.ResourcesProvider resourcesProvider, int account,
                                    FrameLayout containerLayout, Boolean showButton) {
-        showBadgeBulletinInternal(fragment, badge, chat == null ? null : chat.title, chat == null ? null : chat.title, account);
+        long peerId = chat == null ? 0 : chat.id;
+        showBadgeBulletinInternal(fragment, badge, chat == null ? null : chat.title, chat == null ? null : chat.title, account, peerId, showButton);
     }
 
     public void showBadgeBulletin(BaseFragment fragment, BadgeDTO badge, TLRPC.User user,
@@ -181,7 +183,7 @@ public final class BadgesController {
         CharSequence fallback = LocaleController.formatString(
                 isDeveloper(user) ? R.string.ExteraBadgeDeveloper : R.string.ExteraBadgeSupporter,
                 user.first_name);
-        showBadgeBulletinInternal(fragment, badge, fallback, user.first_name, account);
+        showBadgeBulletinInternal(fragment, badge, fallback, user.first_name, account, user.id, showButton);
     }
 
     public void showBadgeBulletin(BaseFragment fragment, TLRPC.User user,
@@ -193,10 +195,10 @@ public final class BadgesController {
         CharSequence fallback = LocaleController.formatString(
                 isDeveloper(user) ? R.string.ExteraBadgeDeveloper : R.string.ExteraBadgeSupporter,
                 user.first_name);
-        showBadgeBulletinInternal(fragment, getBadge(user), fallback, user.first_name, account);
+        showBadgeBulletinInternal(fragment, getBadge(user), fallback, user.first_name, account, user.id, showButton);
     }
 
-    private void showBadgeBulletinInternal(BaseFragment fragment, BadgeDTO badge, CharSequence fallback, CharSequence owner, int account) {
+    private void showBadgeBulletinInternal(BaseFragment fragment, BadgeDTO badge, CharSequence fallback, CharSequence owner, int account, long peerId, Boolean showButton) {
         if (fragment == null || badge == null) {
             return;
         }
@@ -204,11 +206,16 @@ public final class BadgesController {
         if (text == null || text.length() == 0) {
             text = fallback == null ? "Extera badge" : fallback;
         }
+        text = AndroidUtilities.replaceTags(text.toString());
         TLRPC.Document document = AnimatedEmojiDrawable.findDocument(account, badge.getDocumentId());
         if (document != null) {
-            BulletinFactory.of(fragment).createEmojiBulletin(document, text,
-                    LocaleController.getString(R.string.LearnMore),
-                    () -> BadgeInfoBottomSheet.show(fragment, badge, owner)).show();
+            if (Boolean.TRUE.equals(showButton) || apiBadgeSource.shouldShowBadgeButton(peerId)) {
+                BulletinFactory.of(fragment).createEmojiBulletin(document, text,
+                        LocaleController.getString(R.string.LearnMore),
+                        () -> BadgeInfoBottomSheet.show(fragment, badge, owner)).show();
+            } else {
+                BulletinFactory.of(fragment).createEmojiBulletin(document, text).show();
+            }
         } else {
             BadgeInfoBottomSheet.show(fragment, badge, owner);
         }
