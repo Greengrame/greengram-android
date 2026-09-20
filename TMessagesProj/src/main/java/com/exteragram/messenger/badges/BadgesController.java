@@ -206,6 +206,7 @@ public final class BadgesController {
         if (text == null || text.length() == 0) {
             text = fallback == null ? "Extera badge" : fallback;
         }
+        text = text.toString().replace("{USER}", owner == null ? "" : owner.toString());
         text = AndroidUtilities.replaceTags(text.toString());
         TLRPC.Document document = AnimatedEmojiDrawable.findDocument(account, badge.getDocumentId());
         if (document != null) {

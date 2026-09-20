@@ -716,6 +716,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private boolean canDeletePsaSelected;
 
     private int folderId;
+    private int selectedDialogFilterId = -1;
+    private boolean filterTabsUpdatePending;
 
     private DialogsActivity parentForwardDialogFragment;
     private long communityId;
@@ -3761,6 +3763,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     if (!tab.isDefault && (tab.id < 0 || tab.id >= dialogFilters.size())) {
                         return;
                     }
+                    selectedDialogFilterId = dialogFilters.get(tab.id).id;
                     viewPages[1].selectedType = tab.id;
                     viewPages[1].setVisibility(View.VISIBLE);
                     viewPages[1].setTranslationX(viewPages[0].getMeasuredWidth());
@@ -7002,11 +7005,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         FilterTabsView.Tab tab = filterTabsView.getTab(index);
         if (tab != null) {
+            selectedDialogFilterId = fid;
             if (viewPages != null && viewPages.length > 0 && viewPages[0].selectedType == tab.id) {
                 return;
             }
             filterTabsView.scrollToTab(tab, index);
         } else {
+            selectedDialogFilterId = 0;
             filterTabsView.selectLastTab();
         }
     }
@@ -7440,14 +7445,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
         checkSuggestClearDatabase();
         checkUi_mainTabsVisible();
-        if (filterTabsView != null && viewPages[0] != null && viewPages[0].dialogsAdapter != null) {
-            int dialogsType = viewPages[0].dialogsAdapter.getDialogsType();
-            if (dialogsType == DIALOGS_TYPE_FOLDER1 || dialogsType == DIALOGS_TYPE_FOLDER2) {
-                MessagesController.DialogFilter dialogFilter = getMessagesController().selectedDialogFilter[dialogsType == DIALOGS_TYPE_FOLDER1 ? 0 : 1];
-                if (dialogFilter != null) {
-                    filterTabsView.selectTabWithStableId(dialogFilter.localId);
-                }
+        if (!onlySelect && folderId == 0 && communityId == 0 && filterTabsView != null && viewPages != null && viewPages.length > 0) {
+            int filterIdToRestore = selectedDialogFilterId;
+            if (filterIdToRestore < 0) {
+                filterIdToRestore = 0;
             }
+            if (filterTabsUpdatePending) {
+                filterTabsUpdatePending = false;
+                updateFilterTabs(true, false);
+            }
+            selectedDialogFilterId = filterIdToRestore;
+            scrollToFolder(filterIdToRestore);
         }
     }
 
@@ -8122,6 +8130,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 MessagesController.DialogFilter dialogFilter = getMessagesController().selectedDialogFilter[dialogsType == DIALOGS_TYPE_FOLDER1 ? 0 : 1];
                 filterId = dialogFilter == null ? 0 : dialogFilter.id;
             }
+            selectedDialogFilterId = filterId;
             Object object = dialogsAdapter.getItem(position);
             if (delegate != null && dialogsAdapter.isAllowForwardAsStories() && adapter.getItemViewType(position) == DialogsAdapter.VIEW_TYPE_FORWARD_TO_STORIES_CELL) {
                 delegate.didSelectStories(this);
@@ -11014,7 +11023,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 finishFragment();
             }
         } else if (id == NotificationCenter.dialogFiltersUpdated) {
-            updateFilterTabs(true, true);
+            if (isPaused) {
+                filterTabsUpdatePending = true;
+            } else {
+                updateFilterTabs(true, true);
+            }
         } else if (id == NotificationCenter.filterSettingsUpdated) {
             showFiltersHint();
         } else if (id == NotificationCenter.newSuggestionsAvailable) {

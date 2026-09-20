@@ -18,6 +18,6 @@
     <string name="ExteraUpdateLater">Позже</string>
     <string name="ExteraUpdateDownloadFailed">Не удалось скачать обновление</string>
     <string name="ExteraUpdateInstallerFailed">Не удалось открыть установщик пакета</string>
-    <string name="ExteraBadgeDeveloper">%1$s входит в команду разработчиков этого приложения и получил уникальный значок.</string>
-    <string name="ExteraBadgeSupporter">%1$s поддержал разработку этого приложения и получил уникальный значок.</string>
+    <string name="ExteraBadgeDeveloper">**%1$s** входит в команду разработчиков этого приложения и получил уникальный значок.</string>
+    <string name="ExteraBadgeSupporter">**%1$s** поддержал разработку этого приложения и получил уникальный значок.</string>
 </resources>

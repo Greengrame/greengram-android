@@ -18,6 +18,6 @@
     <string name="ExteraUpdateLater">Later</string>
     <string name="ExteraUpdateDownloadFailed">Update download failed</string>
     <string name="ExteraUpdateInstallerFailed">Cannot open package installer</string>
-    <string name="ExteraBadgeDeveloper">%1$s is a member of this app development team and received a unique badge.</string>
-    <string name="ExteraBadgeSupporter">%1$s supported the development of this app and received a unique badge.</string>
+    <string name="ExteraBadgeDeveloper">**%1$s** is a member of this app development team and received a unique badge.</string>
+    <string name="ExteraBadgeSupporter">**%1$s** supported the development of this app and received a unique badge.</string>
 </resources>
