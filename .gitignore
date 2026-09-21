@@ -31,6 +31,9 @@ tests/local/
 # Local Supabase CLI state
 supabase/.temp/
 
+# Badge web local secrets
+badge-web/.env
+
 # Local IDE and APK artifacts
 .vs/
 *.apk
