@@ -142,7 +142,7 @@ public final class ApiBadgeSource {
             String endpoint = base.endsWith("/rest/v1")
                     ? base + "/profiles"
                     : (base.endsWith("/") ? base : base + "/") + "rest/v1/profiles";
-            connection = (HttpURLConnection) new URL(endpoint + "?select=id,type,status,badge_document_id,badge_text,can_change_badge,show_badge_button,badge_button_text,badge_info_icon_document_id,badge_info_title,badge_info_message,badge_close_text,badge_info_features,deleted,updated_at&deleted=eq.false&order=id.asc").openConnection();
+            connection = (HttpURLConnection) new URL(endpoint + "?select=id,type,status,badge_document_id,badge_text,can_change_badge,show_badge_button,forcemorebutton,badge_button_text,badge_info_icon_document_id,badge_info_title,badge_info_message,badge_close_text,badge_info_features,deleted,updated_at&deleted=eq.false&order=id.asc").openConnection();
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(15000);
             connection.setRequestProperty("Accept", "application/json");
@@ -232,6 +232,7 @@ public final class ApiBadgeSource {
             }
             BadgeDTO badge = documentId == 0 ? null : new BadgeDTO(documentId, profile.badge_text);
             replacement.put(profile.id, new BadgeInfo(badge, status, Boolean.TRUE.equals(profile.canChangeBadge), Boolean.TRUE.equals(profile.show_badge_button),
+                    Boolean.TRUE.equals(profile.forcemorebutton),
                     profile.badge_button_text, profile.badge_info_icon_document_id, profile.badge_info_title,
                     profile.badge_info_message, profile.badge_close_text, profile.badge_info_features));
         }
@@ -251,6 +252,7 @@ public final class ApiBadgeSource {
         String badge_text;
         Boolean canChangeBadge;
         Boolean show_badge_button;
+        Boolean forcemorebutton;
         String badge_button_text;
         Long badge_info_icon_document_id;
         String badge_info_title;

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LibreTG Badge Editor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="login" class="login hidden">
+    <form class="card" id="login-form">
+        <h1>LibreTG Badge Editor</h1>
+        <p class="muted">Доступ только для владельца проекта.</p>
+        <input type="password" id="password" placeholder="Пароль" autocomplete="current-password" required>
+        <button type="submit">Войти</button>
+        <p class="error" id="login-error"></p>
+    </form>
+</div>
+
+<div id="app" class="hidden">
+    <header>
+        <div>
+            <h1>LibreTG Badge Editor</h1>
+            <p class="muted" id="count"></p>
+        </div>
+        <div class="header-actions">
+            <input type="search" id="search" placeholder="Поиск по ID, статусу или тексту">
+            <label class="check"><input type="checkbox" id="show-deleted"> удалённые</label>
+            <button class="ghost" id="logout">Выйти</button>
+        </div>
+    </header>
+
+    <main id="list"></main>
+
+    <dialog id="editor">
+        <form method="dialog" class="editor-card" id="editor-form">
+            <h2 id="editor-title">Профиль</h2>
+            <input type="hidden" id="f-id">
+
+            <div class="grid">
+                <label>Telegram ID <input id="f-newid" type="number" placeholder="только для нового"></label>
+                <label>Тип
+                    <select id="f-type">
+                        <option value="USER">USER</option>
+                        <option value="CHAT">CHAT</option>
+                    </select>
+                </label>
+                <label>Роль
+                    <select id="f-status">
+                        <option value="DEFAULT">DEFAULT</option>
+                        <option value="DEVELOPER">DEVELOPER</option>
+                        <option value="SUPPORTER">SUPPORTER</option>
+                        <option value="RESOURCE">RESOURCE</option>
+                        <option value="PARTNER">PARTNER</option>
+                    </select>
+                </label>
+                <label>Document ID профиля <input id="f-document" type="number"></label>
+                <label>Значок карточки <input id="f-info-icon" type="number"></label>
+                <label class="check"><input type="checkbox" id="f-can-change"> can_change_badge</label>
+                <label class="check"><input type="checkbox" id="f-show-button"> show_badge_button</label>
+                <label class="check"><input type="checkbox" id="f-force-more"> forcemorebutton</label>
+                <label class="check"><input type="checkbox" id="f-deleted"> deleted</label>
+            </div>
+
+            <label>Текст в профиле
+                <textarea id="f-badge-text" rows="2" placeholder="Поддерживает **жирный** и {USER}"></textarea>
+            </label>
+            <label>Текст кнопки
+                <input id="f-button-text">
+            </label>
+            <label>Заголовок карточки
+                <input id="f-info-title">
+            </label>
+            <label>Описание карточки
+                <textarea id="f-info-message" rows="3"></textarea>
+            </label>
+            <label>Текст кнопки закрытия
+                <input id="f-close-text">
+            </label>
+
+            <fieldset>
+                <legend>Блоки карточки</legend>
+                <div id="features"></div>
+                <button type="button" class="ghost" id="add-feature">+ блок</button>
+            </fieldset>
+
+            <div class="dialog-actions">
+                <button type="button" class="ghost" id="cancel">Отмена</button>
+                <button type="submit" class="primary" id="save">Сохранить</button>
+            </div>
+            <p class="error" id="editor-error"></p>
+        </form>
+    </dialog>
+
+    <footer>
+        <button class="ghost" id="new-profile">+ новый профиль</button>
+    </footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

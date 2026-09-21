@@ -7,6 +7,20 @@
         <item>
             <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.11</title>
+            <description><![CDATA[Badges now support custom animated emoji icons, role colors, a details card with configurable rows, and the {USER} placeholder.]]></description>
+            <pubDate>Sun, 21 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1272</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.11</title>
+            <description><![CDATA[Значки теперь поддерживают кастомные анимированные эмодзи, цвета ролей, карточку с настраиваемыми блоками и подстановку {USER}.]]></description>
+            <pubDate>Sun, 21 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1272-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.11</title>
             <description><![CDATA[Badge improvements and update stability fixes.]]></description>
             <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
             <guid isPermaLink="false">libretg-1271</guid>

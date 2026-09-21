@@ -231,6 +231,8 @@ public final class BadgesController {
         if (fragment == null || badge == null) {
             return;
         }
+        boolean isChat = peerId < 0;
+        long ownerId = isChat ? -peerId : peerId;
         CharSequence text = badge.getText();
         if (text == null || text.length() == 0) {
             text = fallback == null ? "Extera badge" : fallback;
@@ -239,23 +241,24 @@ public final class BadgesController {
         text = AndroidUtilities.replaceTags(text.toString());
         TLRPC.Document document = AnimatedEmojiDrawable.findDocument(account, badge.getDocumentId());
         if (document != null) {
-            BadgeInfo info = apiBadgeSource.getInfo(peerId);
-            boolean showLearnMore = Boolean.TRUE.equals(showButton) || apiBadgeSource.shouldShowBadgeButton(peerId);
-            boolean compact = text.length() <= 24;
+            BadgeInfo info = apiBadgeSource.getInfo(ownerId);
+            boolean forceMore = info != null && info.getForceMoreButton();
+            boolean showLearnMore = Boolean.TRUE.equals(showButton) || apiBadgeSource.shouldShowBadgeButton(ownerId) || forceMore;
+            boolean compact = text.length() <= 24 && !forceMore;
             if (showLearnMore && !compact) {
                 CharSequence buttonText = info == null || info.getBadgeButtonText() == null || info.getBadgeButtonText().isEmpty()
                         ? LocaleController.getString(R.string.LearnMore)
                         : AndroidUtilities.replaceTags(info.getBadgeButtonText().replace("{USER}", owner == null ? "" : owner.toString()));
                 BulletinFactory.of(fragment).createEmojiBulletin(document, text,
                         buttonText,
-                        () -> BadgeInfoBottomSheet.show(fragment, badge, owner, info)).show();
+                        () -> BadgeInfoBottomSheet.show(fragment, badge, owner, info, ownerId, isChat)).show();
             } else {
                 BulletinFactory.of(fragment).createEmojiBulletin(document, text)
                         .wrapContent()
                         .show();
             }
         } else {
-            BadgeInfoBottomSheet.show(fragment, badge, owner, apiBadgeSource.getInfo(peerId));
+            BadgeInfoBottomSheet.show(fragment, badge, owner, apiBadgeSource.getInfo(ownerId), ownerId, isChat);
         }
     }
 }

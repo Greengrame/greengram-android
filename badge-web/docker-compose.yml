@@ -1,0 +1,21 @@
+services:
+  badge-web:
+    build: .
+    container_name: badge-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "proxy"
+      traefik.http.routers.badgeweb.entrypoints: "websecure"
+      traefik.http.routers.badgeweb.rule: "Host(`badge.tg.dexx.moe`)"
+      traefik.http.routers.badgeweb.tls: "true"
+      traefik.http.routers.badgeweb.tls.certresolver: "le"
+      traefik.http.services.badgeweb.loadbalancer.server.port: "8080"
+
+networks:
+  proxy:
+    external: true

@@ -15,6 +15,8 @@ public final class BadgeInfo {
     private final ProfileStatus status;
     private final boolean canChangeBadge;
     private final boolean showBadgeButton;
+    private final boolean forceMoreButton;
+    private final String editorSecret;
     private final String badgeButtonText;
     private final Long infoIconDocumentId;
     private final String infoTitle;
@@ -23,16 +25,25 @@ public final class BadgeInfo {
     private final List<BadgeFeature> infoFeatures;
 
     public BadgeInfo(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton) {
-        this(badge, status, canChangeBadge, showBadgeButton, null, null, null, null, null, null);
+        this(badge, status, canChangeBadge, showBadgeButton, false, null, null, null, null, null, null, null);
     }
 
     public BadgeInfo(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton,
-                     String badgeButtonText, Long infoIconDocumentId, String infoTitle, String infoMessage,
-                     String closeText, List<BadgeFeature> infoFeatures) {
+                     boolean forceMoreButton, String badgeButtonText, Long infoIconDocumentId, String infoTitle,
+                     String infoMessage, String closeText, List<BadgeFeature> infoFeatures) {
+        this(badge, status, canChangeBadge, showBadgeButton, forceMoreButton, null, badgeButtonText, infoIconDocumentId,
+                infoTitle, infoMessage, closeText, infoFeatures);
+    }
+
+    public BadgeInfo(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton,
+                     boolean forceMoreButton, String editorSecret, String badgeButtonText, Long infoIconDocumentId,
+                     String infoTitle, String infoMessage, String closeText, List<BadgeFeature> infoFeatures) {
         this.badge = badge;
         this.status = status;
         this.canChangeBadge = canChangeBadge;
         this.showBadgeButton = showBadgeButton;
+        this.forceMoreButton = forceMoreButton;
+        this.editorSecret = editorSecret;
         this.badgeButtonText = badgeButtonText;
         this.infoIconDocumentId = infoIconDocumentId;
         this.infoTitle = infoTitle;
@@ -55,6 +66,14 @@ public final class BadgeInfo {
 
     public boolean getShowBadgeButton() {
         return showBadgeButton;
+    }
+
+    public boolean getForceMoreButton() {
+        return forceMoreButton;
+    }
+
+    public String getEditorSecret() {
+        return editorSecret;
     }
 
     public String getBadgeButtonText() {
@@ -82,7 +101,7 @@ public final class BadgeInfo {
     }
 
     public BadgeInfo copy(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton) {
-        return new BadgeInfo(badge, status, canChangeBadge, showBadgeButton, badgeButtonText, infoIconDocumentId, infoTitle, infoMessage, closeText, infoFeatures);
+        return new BadgeInfo(badge, status, canChangeBadge, showBadgeButton, forceMoreButton, editorSecret, badgeButtonText, infoIconDocumentId, infoTitle, infoMessage, closeText, infoFeatures);
     }
 
     @Override
@@ -96,8 +115,10 @@ public final class BadgeInfo {
         BadgeInfo info = (BadgeInfo) other;
         return canChangeBadge == info.canChangeBadge
                 && showBadgeButton == info.showBadgeButton
+                && forceMoreButton == info.forceMoreButton
                 && Objects.equals(badge, info.badge)
                 && status == info.status
+                && Objects.equals(editorSecret, info.editorSecret)
                 && Objects.equals(badgeButtonText, info.badgeButtonText)
                 && Objects.equals(infoIconDocumentId, info.infoIconDocumentId)
                 && Objects.equals(infoTitle, info.infoTitle)
@@ -108,7 +129,7 @@ public final class BadgeInfo {
 
     @Override
     public int hashCode() {
-        return Objects.hash(badge, status, canChangeBadge, showBadgeButton, badgeButtonText, infoIconDocumentId, infoTitle, infoMessage, closeText, infoFeatures);
+        return Objects.hash(badge, status, canChangeBadge, showBadgeButton, forceMoreButton, editorSecret, badgeButtonText, infoIconDocumentId, infoTitle, infoMessage, closeText, infoFeatures);
     }
 
     @NonNull
