@@ -1537,22 +1537,24 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                         } else if (chat.fake) {
                             drawScam = 2;
                             Theme.dialogs_fakeDrawable.checkText();
-                        } else if (BadgesController.INSTANCE.getBadge(chat) != null) {
-                            BadgeDTO badge = BadgesController.INSTANCE.getBadge(chat);
-                            drawPremium = true;
-                            nameLayoutEllipsizeByGradient = true;
-                            emojiStatus.center = LocaleController.isRTL;
-                            emojiStatus.set(badge.getDocumentId(), false);
-                            emojiStatus.setParticles(true, false);
-                        } else if (DialogObject.getEmojiStatusDocumentId(chat.emoji_status) != 0) {
-                            drawPremium = true;
-                            nameLayoutEllipsizeByGradient = true;
-                            emojiStatus.center = LocaleController.isRTL;
-                            emojiStatus.set(DialogObject.getEmojiStatusDocumentId(chat.emoji_status), false);
-                            emojiStatus.setParticles(DialogObject.isEmojiStatusCollectible(chat.emoji_status), false);
                         } else {
-                            drawVerified = !forbidVerified && chat.verified;
-                            drawBotVerified = !forbidVerified && chat.bot_verification_icon != 0;
+                            BadgeDTO badge = BadgesController.INSTANCE.getBadge(chat);
+                            if (badge != null) {
+                                drawPremium = true;
+                                nameLayoutEllipsizeByGradient = true;
+                                emojiStatus.center = LocaleController.isRTL;
+                                emojiStatus.set(badge.getDocumentId(), false);
+                                emojiStatus.setParticles(true, false);
+                            } else if (DialogObject.getEmojiStatusDocumentId(chat.emoji_status) != 0) {
+                                drawPremium = true;
+                                nameLayoutEllipsizeByGradient = true;
+                                emojiStatus.center = LocaleController.isRTL;
+                                emojiStatus.set(DialogObject.getEmojiStatusDocumentId(chat.emoji_status), false);
+                                emojiStatus.setParticles(DialogObject.isEmojiStatusCollectible(chat.emoji_status), false);
+                            } else {
+                                drawVerified = !forbidVerified && chat.verified;
+                                drawBotVerified = !forbidVerified && chat.bot_verification_icon != 0;
+                            }
                         }
                     } else if (user != null) {
                         dialogBotVerificationIcon = DialogObject.getBotVerificationIcon(user);
@@ -3491,15 +3493,32 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
                 if ((mask & MessagesController.UPDATE_MASK_EMOJI_STATUS) != 0) {
                     long dialogBotVerificationIcon = 0;
+                    boolean wasDrawPremium = drawPremium;
                     if (user != null) {
                         user = MessagesController.getInstance(currentAccount).getUser(user.id);
-                        if (user != null && DialogObject.getEmojiStatusDocumentId(user.emoji_status) != 0) {
+                        BadgeDTO badge = user == null ? null : BadgesController.INSTANCE.getBadge(user);
+                        if (badge != null) {
+                            drawPremium = true;
                             nameLayoutEllipsizeByGradient = true;
-                            emojiStatus.set(DialogObject.getEmojiStatusDocumentId(user.emoji_status), animated);
-                            emojiStatus.setParticles(DialogObject.isEmojiStatusCollectible(user.emoji_status), animated);
+                            emojiStatus.center = LocaleController.isRTL;
+                            emojiStatus.set(badge.getDocumentId(), animated);
+                            emojiStatus.setParticles(true, animated);
+                        } else if (user != null && MessagesController.getInstance(currentAccount).isPremiumUser(user)
+                                && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0) {
+                            drawPremium = true;
+                            nameLayoutEllipsizeByGradient = true;
+                            Long emojiStatusId = UserObject.getEmojiStatusDocumentId(user);
+                            emojiStatus.center = LocaleController.isRTL;
+                            if (emojiStatusId != null) {
+                                emojiStatus.set(emojiStatusId, animated);
+                                emojiStatus.setParticles(DialogObject.isEmojiStatusCollectible(user.emoji_status), animated);
+                            } else {
+                                emojiStatus.set(PremiumGradient.getInstance().premiumStarDrawableMini, animated);
+                                emojiStatus.setParticles(false, animated);
+                            }
                         } else {
-                            nameLayoutEllipsizeByGradient = true;
-                            emojiStatus.set(PremiumGradient.getInstance().premiumStarDrawableMini, animated);
+                            drawPremium = false;
+                            emojiStatus.set((Drawable) null, animated);
                             emojiStatus.setParticles(false, animated);
                         }
                         dialogBotVerificationIcon = DialogObject.getBotVerificationIcon(user);
@@ -3507,17 +3526,30 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                     }
                     if (chat != null) {
                         chat = MessagesController.getInstance(currentAccount).getChat(chat.id);
-                        if (chat != null && DialogObject.getEmojiStatusDocumentId(chat.emoji_status) != 0)  {
+                        BadgeDTO badge = chat == null ? null : BadgesController.INSTANCE.getBadge(chat);
+                        long emojiStatusId = chat == null ? 0 : DialogObject.getEmojiStatusDocumentId(chat.emoji_status);
+                        if (badge != null) {
+                            drawPremium = true;
                             nameLayoutEllipsizeByGradient = true;
-                            emojiStatus.set(DialogObject.getEmojiStatusDocumentId(chat.emoji_status), animated);
+                            emojiStatus.center = LocaleController.isRTL;
+                            emojiStatus.set(badge.getDocumentId(), animated);
+                            emojiStatus.setParticles(true, animated);
+                        } else if (emojiStatusId != 0) {
+                            drawPremium = true;
+                            nameLayoutEllipsizeByGradient = true;
+                            emojiStatus.center = LocaleController.isRTL;
+                            emojiStatus.set(emojiStatusId, animated);
                             emojiStatus.setParticles(DialogObject.isEmojiStatusCollectible(chat.emoji_status), animated);
                         } else {
-                            nameLayoutEllipsizeByGradient = true;
-                            emojiStatus.set(PremiumGradient.getInstance().premiumStarDrawableMini, animated);
+                            drawPremium = false;
+                            emojiStatus.set((Drawable) null, animated);
                             emojiStatus.setParticles(false, animated);
                         }
                         dialogBotVerificationIcon = DialogObject.getBotVerificationIcon(chat);
                         invalidate = true;
+                    }
+                    if (wasDrawPremium != drawPremium) {
+                        continueUpdate = true;
                     }
                     if (dialogBotVerificationIcon != 0) {
                         if (!drawBotVerified) {

@@ -5,6 +5,8 @@ import androidx.annotation.NonNull;
 import com.exteragram.messenger.api.dto.BadgeDTO;
 import com.exteragram.messenger.api.model.ProfileStatus;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 public final class BadgeInfo {
@@ -13,12 +15,30 @@ public final class BadgeInfo {
     private final ProfileStatus status;
     private final boolean canChangeBadge;
     private final boolean showBadgeButton;
+    private final String badgeButtonText;
+    private final Long infoIconDocumentId;
+    private final String infoTitle;
+    private final String infoMessage;
+    private final String closeText;
+    private final List<BadgeFeature> infoFeatures;
 
     public BadgeInfo(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton) {
+        this(badge, status, canChangeBadge, showBadgeButton, null, null, null, null, null, null);
+    }
+
+    public BadgeInfo(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton,
+                     String badgeButtonText, Long infoIconDocumentId, String infoTitle, String infoMessage,
+                     String closeText, List<BadgeFeature> infoFeatures) {
         this.badge = badge;
         this.status = status;
         this.canChangeBadge = canChangeBadge;
         this.showBadgeButton = showBadgeButton;
+        this.badgeButtonText = badgeButtonText;
+        this.infoIconDocumentId = infoIconDocumentId;
+        this.infoTitle = infoTitle;
+        this.infoMessage = infoMessage;
+        this.closeText = closeText;
+        this.infoFeatures = infoFeatures == null ? null : Collections.unmodifiableList(infoFeatures);
     }
 
     public BadgeDTO getBadge() {
@@ -37,8 +57,32 @@ public final class BadgeInfo {
         return showBadgeButton;
     }
 
+    public String getBadgeButtonText() {
+        return badgeButtonText;
+    }
+
+    public Long getInfoIconDocumentId() {
+        return infoIconDocumentId;
+    }
+
+    public String getInfoTitle() {
+        return infoTitle;
+    }
+
+    public String getInfoMessage() {
+        return infoMessage;
+    }
+
+    public String getCloseText() {
+        return closeText;
+    }
+
+    public List<BadgeFeature> getInfoFeatures() {
+        return infoFeatures;
+    }
+
     public BadgeInfo copy(BadgeDTO badge, ProfileStatus status, boolean canChangeBadge, boolean showBadgeButton) {
-        return new BadgeInfo(badge, status, canChangeBadge, showBadgeButton);
+        return new BadgeInfo(badge, status, canChangeBadge, showBadgeButton, badgeButtonText, infoIconDocumentId, infoTitle, infoMessage, closeText, infoFeatures);
     }
 
     @Override
@@ -53,12 +97,18 @@ public final class BadgeInfo {
         return canChangeBadge == info.canChangeBadge
                 && showBadgeButton == info.showBadgeButton
                 && Objects.equals(badge, info.badge)
-                && status == info.status;
+                && status == info.status
+                && Objects.equals(badgeButtonText, info.badgeButtonText)
+                && Objects.equals(infoIconDocumentId, info.infoIconDocumentId)
+                && Objects.equals(infoTitle, info.infoTitle)
+                && Objects.equals(infoMessage, info.infoMessage)
+                && Objects.equals(closeText, info.closeText)
+                && Objects.equals(infoFeatures, info.infoFeatures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(badge, status, canChangeBadge, showBadgeButton);
+        return Objects.hash(badge, status, canChangeBadge, showBadgeButton, badgeButtonText, infoIconDocumentId, infoTitle, infoMessage, closeText, infoFeatures);
     }
 
     @NonNull

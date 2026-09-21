@@ -99,6 +99,54 @@ Python 3.12 лишь под них, и на `armeabi-v7a` конфигураци
 
 Дальше запустить workflow **Release Build**. Готовый APK лежит в артефактах прогона.
 
+### Бейджи Supabase
+
+Поля `badge_info_*` настраивают экран «Подробнее». Поле `badge_info_features` содержит
+JSON-массив строк:
+
+```json
+[
+  {
+    "enabled": true,
+    "icon_document_id": 5440476932594509216,
+    "title": "Официальный ресурс",
+    "text": "Проверенный ресурс **LibreTG**."
+  },
+  {
+    "enabled": true,
+    "icon_document_id": 5319108252095520466,
+    "title": "Видно в профиле",
+    "text": "У пользователя **{USER}** отображается этот значок."
+  },
+  {
+    "enabled": false,
+    "icon_document_id": null,
+    "title": "Скрытая строка",
+    "text": "Эта строка не отображается."
+  }
+]
+```
+
+Пример обновления профиля:
+
+```sql
+update public.profiles
+set
+    status = 'RESOURCE',
+    badge_document_id = 5440476932594509216,
+    badge_text = '**{USER}** является официальным ресурсом **LibreTG**.',
+    show_badge_button = true,
+    badge_button_text = 'Подробнее',
+    badge_info_title = 'Официальный ресурс',
+    badge_info_message = 'Этот значок назначается официальным ресурсам **LibreTG**.',
+    badge_info_icon_document_id = 5440476932594509216,
+    badge_close_text = 'Закрыть',
+    badge_info_features = '[...]'::jsonb
+where id = 123456789;
+```
+
+`NULL` в `badge_info_features` использует ролевые тексты по умолчанию, а `[]` скрывает все строки.
+
 ### Авторы дизайна
 
 Иконки и оформление, унаследованные от exteraGram, созданы его дизайнером —
@@ -167,3 +215,11 @@ only, and `armeabi-v7a` fails at configuration time. `NATIVE_TARGET` selects the
 For CI, set two repository secrets — `LOCAL_PROPERTIES` and `RELEASE_KEYSTORE`, both
 base64-encoded — and run the **Release Build** workflow. The APK ends up in the run
 artifacts.
+
+### Supabase badges
+
+The `badge_info_*` columns configure the details sheet opened by the badge button.
+`badge_info_features` is a JSON array with `enabled`, `icon_document_id`, `title` and
+`text` fields. `**...**` enables bold text and `{USER}` is replaced with the profile name.
+
+`NULL` uses the role fallback text; `[]` hides all feature rows.

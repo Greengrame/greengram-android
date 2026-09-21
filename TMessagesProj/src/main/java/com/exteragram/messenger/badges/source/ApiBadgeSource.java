@@ -17,24 +17,29 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Remote profile source with a persistent SharedPreferences cache. */
 public final class ApiBadgeSource {
     private static final long DEVELOPER_BADGE_DOCUMENT_ID = 5359407509327085568L;
     private static final long SUPPORTER_BADGE_DOCUMENT_ID = 5391059537102927631L;
+    private static final long RESOURCE_BADGE_DOCUMENT_ID = 5440476932594509216L;
+    private static final long PARTNER_BADGE_DOCUMENT_ID = 5319108252095520466L;
     private static final String CACHE_KEY = "exteraless_badges_profiles";
     private static final String ETAG_KEY = "exteraless_badges_etag";
     private static final String SYNC_KEY = "exteraless_badges_sync";
-    private static final long SYNC_INTERVAL = 10 * 60 * 1000L;
+    private static final long SYNC_INTERVAL = 30 * 1000L;
     private static final Gson GSON = new Gson();
-    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final ScheduledExecutorService EXECUTOR = Executors.newSingleThreadScheduledExecutor();
     private final AtomicBoolean syncInProgress = new AtomicBoolean();
+    private final AtomicBoolean periodicRefreshStarted = new AtomicBoolean();
 
     private final ConcurrentHashMap<Long, BadgeInfo> cache = new ConcurrentHashMap<>();
 
@@ -52,12 +57,23 @@ public final class ApiBadgeSource {
         if (info.getStatus() == ProfileStatus.SUPPORTER) {
             return new BadgeDTO(SUPPORTER_BADGE_DOCUMENT_ID, null);
         }
+        if (info.getStatus() == ProfileStatus.RESOURCE) {
+            return new BadgeDTO(RESOURCE_BADGE_DOCUMENT_ID, null);
+        }
+        if (info.getStatus() == ProfileStatus.PARTNER) {
+            return new BadgeDTO(PARTNER_BADGE_DOCUMENT_ID, null);
+        }
         return null;
     }
 
     public boolean isDeveloper(long id) {
         BadgeInfo info = cache.get(id);
         return info != null && info.getStatus() == ProfileStatus.DEVELOPER;
+    }
+
+    public ProfileStatus getStatus(long id) {
+        BadgeInfo info = cache.get(id);
+        return info == null ? ProfileStatus.DEFAULT : info.getStatus();
     }
 
     public boolean canChangeBadge(long id) {
@@ -99,6 +115,9 @@ public final class ApiBadgeSource {
         if (!hasCache || System.currentTimeMillis() - ExteraConfig.getPreferences().getLong(SYNC_KEY, 0L) >= SYNC_INTERVAL) {
             refresh();
         }
+        if (periodicRefreshStarted.compareAndSet(false, true)) {
+            EXECUTOR.scheduleWithFixedDelay(this::refresh, SYNC_INTERVAL, SYNC_INTERVAL, TimeUnit.MILLISECONDS);
+        }
     }
 
     public void refresh() {
@@ -123,7 +142,7 @@ public final class ApiBadgeSource {
             String endpoint = base.endsWith("/rest/v1")
                     ? base + "/profiles"
                     : (base.endsWith("/") ? base : base + "/") + "rest/v1/profiles";
-            connection = (HttpURLConnection) new URL(endpoint + "?select=id,type,status,badge_document_id,badge_text,can_change_badge,show_badge_button,deleted,updated_at&deleted=eq.false").openConnection();
+            connection = (HttpURLConnection) new URL(endpoint + "?select=id,type,status,badge_document_id,badge_text,can_change_badge,show_badge_button,badge_button_text,badge_info_icon_document_id,badge_info_title,badge_info_message,badge_close_text,badge_info_features,deleted,updated_at&deleted=eq.false&order=id.asc").openConnection();
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(15000);
             connection.setRequestProperty("Accept", "application/json");
@@ -151,21 +170,27 @@ public final class ApiBadgeSource {
                     json.append(line);
                 }
             }
-            List<RemoteProfile> profiles = GSON.fromJson(json.toString(), new TypeToken<List<RemoteProfile>>() { }.getType());
-            replace(profiles);
+            String payload = json.toString();
+            boolean changed = !payload.equals(ExteraConfig.getPreferences().getString(CACHE_KEY, null));
+            List<RemoteProfile> profiles = GSON.fromJson(payload, new TypeToken<List<RemoteProfile>>() { }.getType());
+            if (changed) {
+                replace(profiles);
+            }
             android.content.SharedPreferences.Editor editor = ExteraConfig.getEditor()
-                    .putString(CACHE_KEY, json.toString())
+                    .putString(CACHE_KEY, payload)
                     .putLong(SYNC_KEY, System.currentTimeMillis());
             String responseEtag = connection.getHeaderField("ETag");
             if (responseEtag != null && !responseEtag.isEmpty()) {
                 editor.putString(ETAG_KEY, responseEtag);
             }
             editor.apply();
-            AndroidUtilities.runOnUIThread(() -> {
-                NotificationCenter.getInstance(UserConfig.selectedAccount).postNotificationNameOnUIThread(
-                        NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_EMOJI_STATUS);
-                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
-            });
+            if (changed) {
+                AndroidUtilities.runOnUIThread(() -> {
+                    NotificationCenter.getInstance(UserConfig.selectedAccount).postNotificationNameOnUIThread(
+                            NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_EMOJI_STATUS);
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
+                });
+            }
         } catch (Throwable e) {
             FileLog.e("Unable to sync badges", e);
         } finally {
@@ -176,8 +201,9 @@ public final class ApiBadgeSource {
     }
 
     private void replace(List<RemoteProfile> profiles) {
-        cache.clear();
+        Map<Long, BadgeInfo> replacement = new HashMap<>();
         if (profiles == null) {
+            cache.clear();
             return;
         }
         for (RemoteProfile profile : profiles) {
@@ -197,12 +223,24 @@ public final class ApiBadgeSource {
                 documentId = DEVELOPER_BADGE_DOCUMENT_ID;
             } else if (status == ProfileStatus.SUPPORTER) {
                 documentId = SUPPORTER_BADGE_DOCUMENT_ID;
+            } else if (status == ProfileStatus.RESOURCE) {
+                documentId = RESOURCE_BADGE_DOCUMENT_ID;
+            } else if (status == ProfileStatus.PARTNER) {
+                documentId = PARTNER_BADGE_DOCUMENT_ID;
             } else {
                 documentId = 0;
             }
             BadgeDTO badge = documentId == 0 ? null : new BadgeDTO(documentId, profile.badge_text);
-            cache.put(profile.id, new BadgeInfo(badge, status, Boolean.TRUE.equals(profile.canChangeBadge), Boolean.TRUE.equals(profile.show_badge_button)));
+            replacement.put(profile.id, new BadgeInfo(badge, status, Boolean.TRUE.equals(profile.canChangeBadge), Boolean.TRUE.equals(profile.show_badge_button),
+                    profile.badge_button_text, profile.badge_info_icon_document_id, profile.badge_info_title,
+                    profile.badge_info_message, profile.badge_close_text, profile.badge_info_features));
         }
+        for (Long id : cache.keySet()) {
+            if (!replacement.containsKey(id)) {
+                cache.remove(id);
+            }
+        }
+        cache.putAll(replacement);
     }
 
     private static final class RemoteProfile {
@@ -213,6 +251,12 @@ public final class ApiBadgeSource {
         String badge_text;
         Boolean canChangeBadge;
         Boolean show_badge_button;
+        String badge_button_text;
+        Long badge_info_icon_document_id;
+        String badge_info_title;
+        String badge_info_message;
+        String badge_close_text;
+        List<BadgeFeature> badge_info_features;
         Boolean deleted;
     }
 }

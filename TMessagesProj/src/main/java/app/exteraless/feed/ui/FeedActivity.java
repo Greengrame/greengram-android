@@ -598,10 +598,9 @@ public class FeedActivity extends BaseFragment implements NotificationCenter.Not
 
     @Override
     public BlurredBackgroundSourceRenderNode getGlassSource() {
-        if (chatContainer == null || chatContainer.chatActivity == null) {
-            return null;
-        }
-        return chatContainer.chatActivity.getGlassSource();
+        // The embedded feed already composites its own glass layers. Reusing that
+        // render node for the parent tabs applies the feed image a second time.
+        return null;
     }
 
     /** Вызывается MainTabsActivity, когда вкладка стала полностью видимой. */

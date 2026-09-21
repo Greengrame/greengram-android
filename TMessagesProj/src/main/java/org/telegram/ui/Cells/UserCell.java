@@ -580,6 +580,9 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
                     continueUpdate = true;
                 }
             }
+            if (!continueUpdate && (mask & MessagesController.UPDATE_MASK_EMOJI_STATUS) != 0) {
+                continueUpdate = true;
+            }
             if (!continueUpdate) {
                 return;
             }

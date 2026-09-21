@@ -1,10 +1,17 @@
 create table if not exists public.profiles (
     id bigint primary key,
     type text not null default 'USER' check (type in ('USER', 'CHAT')),
-    status text not null default 'DEFAULT' check (status in ('DEFAULT', 'DEVELOPER', 'SUPPORTER')),
+    status text not null default 'DEFAULT' check (status in ('DEFAULT', 'DEVELOPER', 'SUPPORTER', 'RESOURCE', 'PARTNER')),
     badge_document_id bigint,
     badge_text text,
     can_change_badge boolean not null default false,
+    show_badge_button boolean not null default true,
+    badge_button_text text,
+    badge_info_icon_document_id bigint,
+    badge_info_title text,
+    badge_info_message text,
+    badge_close_text text,
+    badge_info_features jsonb,
     deleted boolean not null default false,
     updated_at timestamptz not null default now()
 );

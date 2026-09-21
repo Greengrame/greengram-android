@@ -4,7 +4,9 @@ import android.content.SharedPreferences;
 import android.widget.FrameLayout;
 
 import com.exteragram.messenger.api.dto.BadgeDTO;
+import com.exteragram.messenger.api.model.ProfileStatus;
 import com.exteragram.messenger.badges.source.ApiBadgeSource;
+import com.exteragram.messenger.badges.source.BadgeInfo;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
@@ -28,7 +30,8 @@ public final class BadgesController {
     private static final ApiBadgeSource apiBadgeSource = new ApiBadgeSource();
     private static final BadgeDTO DEVELOPER_BADGE = new BadgeDTO(5359407509327085568L, null);
     private static final BadgeDTO SUPPORTER_BADGE = new BadgeDTO(5391059537102927631L, null);
-    private static final BadgeDTO TRUSTED_BADGE = new BadgeDTO(5452008215409629764L, null);
+    private static final BadgeDTO RESOURCE_BADGE = new BadgeDTO(5440476932594509216L, null);
+    private static final BadgeDTO PARTNER_BADGE = new BadgeDTO(5319108252095520466L, null);
 
     private static final String PREFS_NAME = "exteraless_badges";
     private static final String KEY_DOCUMENT = "badge_document_";
@@ -89,11 +92,25 @@ public final class BadgesController {
     }
 
     public BadgeDTO getDefaultBadge() {
-        return isDeveloper() ? DEVELOPER_BADGE : SUPPORTER_BADGE;
+        return getDefaultBadgeFor(selfId());
     }
 
     public BadgeDTO getDefaultBadge(TLRPC.User user) {
-        return isDeveloper(user) ? DEVELOPER_BADGE : SUPPORTER_BADGE;
+        return getDefaultBadgeFor(user == null ? 0 : user.id);
+    }
+
+    private BadgeDTO getDefaultBadgeFor(long id) {
+        ProfileStatus status = apiBadgeSource.getStatus(id);
+        if (status == ProfileStatus.DEVELOPER) {
+            return DEVELOPER_BADGE;
+        }
+        if (status == ProfileStatus.RESOURCE) {
+            return RESOURCE_BADGE;
+        }
+        if (status == ProfileStatus.PARTNER) {
+            return PARTNER_BADGE;
+        }
+        return SUPPORTER_BADGE;
     }
 
     public BadgeDTO getSecondaryBadge(TLRPC.User user) {
@@ -166,7 +183,8 @@ public final class BadgesController {
                                    Theme.ResourcesProvider resourcesProvider, int account,
                                    FrameLayout containerLayout, Boolean showButton) {
         long peerId = chat == null ? 0 : chat.id;
-        showBadgeBulletinInternal(fragment, badge, chat == null ? null : chat.title, chat == null ? null : chat.title, account, peerId, showButton);
+        CharSequence owner = chat == null ? null : chat.title;
+        showBadgeBulletinInternal(fragment, badge, chat == null ? null : getDefaultBadgeText(peerId, owner), owner, account, peerId, showButton);
     }
 
     public void showBadgeBulletin(BaseFragment fragment, BadgeDTO badge, TLRPC.User user,
@@ -180,9 +198,7 @@ public final class BadgesController {
         if (user == null) {
             return;
         }
-        CharSequence fallback = LocaleController.formatString(
-                isDeveloper(user) ? R.string.ExteraBadgeDeveloper : R.string.ExteraBadgeSupporter,
-                user.first_name);
+        CharSequence fallback = getDefaultBadgeText(user.id, user.first_name);
         showBadgeBulletinInternal(fragment, badge, fallback, user.first_name, account, user.id, showButton);
     }
 
@@ -192,10 +208,23 @@ public final class BadgesController {
         if (user == null) {
             return;
         }
-        CharSequence fallback = LocaleController.formatString(
-                isDeveloper(user) ? R.string.ExteraBadgeDeveloper : R.string.ExteraBadgeSupporter,
-                user.first_name);
+        CharSequence fallback = getDefaultBadgeText(user.id, user.first_name);
         showBadgeBulletinInternal(fragment, getBadge(user), fallback, user.first_name, account, user.id, showButton);
+    }
+
+    private CharSequence getDefaultBadgeText(long id, CharSequence owner) {
+        int stringId;
+        ProfileStatus status = apiBadgeSource.getStatus(id);
+        if (status == ProfileStatus.DEVELOPER) {
+            stringId = R.string.ExteraBadgeDeveloper;
+        } else if (status == ProfileStatus.RESOURCE) {
+            stringId = R.string.ExteraBadgeResource;
+        } else if (status == ProfileStatus.PARTNER) {
+            stringId = R.string.ExteraBadgePartner;
+        } else {
+            stringId = R.string.ExteraBadgeSupporter;
+        }
+        return LocaleController.formatString(stringId, owner == null ? "" : owner);
     }
 
     private void showBadgeBulletinInternal(BaseFragment fragment, BadgeDTO badge, CharSequence fallback, CharSequence owner, int account, long peerId, Boolean showButton) {
@@ -210,15 +239,23 @@ public final class BadgesController {
         text = AndroidUtilities.replaceTags(text.toString());
         TLRPC.Document document = AnimatedEmojiDrawable.findDocument(account, badge.getDocumentId());
         if (document != null) {
-            if (Boolean.TRUE.equals(showButton) || apiBadgeSource.shouldShowBadgeButton(peerId)) {
+            BadgeInfo info = apiBadgeSource.getInfo(peerId);
+            boolean showLearnMore = Boolean.TRUE.equals(showButton) || apiBadgeSource.shouldShowBadgeButton(peerId);
+            boolean compact = text.length() <= 24;
+            if (showLearnMore && !compact) {
+                CharSequence buttonText = info == null || info.getBadgeButtonText() == null || info.getBadgeButtonText().isEmpty()
+                        ? LocaleController.getString(R.string.LearnMore)
+                        : AndroidUtilities.replaceTags(info.getBadgeButtonText().replace("{USER}", owner == null ? "" : owner.toString()));
                 BulletinFactory.of(fragment).createEmojiBulletin(document, text,
-                        LocaleController.getString(R.string.LearnMore),
-                        () -> BadgeInfoBottomSheet.show(fragment, badge, owner)).show();
+                        buttonText,
+                        () -> BadgeInfoBottomSheet.show(fragment, badge, owner, info)).show();
             } else {
-                BulletinFactory.of(fragment).createEmojiBulletin(document, text).show();
+                BulletinFactory.of(fragment).createEmojiBulletin(document, text)
+                        .wrapContent()
+                        .show();
             }
         } else {
-            BadgeInfoBottomSheet.show(fragment, badge, owner);
+            BadgeInfoBottomSheet.show(fragment, badge, owner, apiBadgeSource.getInfo(peerId));
         }
     }
 }

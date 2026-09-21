@@ -333,7 +333,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     @Override
     public void onResume() {
         super.onResume();
-        com.exteragram.messenger.badges.BadgesController.INSTANCE.refresh();
         blur3_updateColors();
         checkContactsTabBadge();
         checkUnreadCount(true);
