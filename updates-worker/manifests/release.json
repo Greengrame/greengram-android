@@ -1,10 +1,10 @@
 {
     "packageName": "com.de.xxtg",
-    "versionCode": 1272,
-    "versionName": "12.10.11.1",
-    "title": "LibreTG 12.10.11.1",
+    "versionCode": 1273,
+    "versionName": "12.10.12",
+    "title": "LibreTG 12.10.12",
     "releaseNotes": "Release notes are available in the changelog.",
     "apkUrl": "https://tg-updates.rtstaller1.workers.dev/app-release.apk",
-    "sha256": "9daf008dc54e05d58918057c1d8b2cdf5ac7242c072c7a41d0f122608524f4dd",
+    "sha256": "a298d2680ce5e6f301e2961f714b8561e40de9d5b29db0602f1de77d89f40f2f",
     "mandatory": false
 }
