@@ -50,6 +50,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import app.exteraless.speech.VoskTranscriber;
 import tw.nekomimi.nekogram.utils.HttpClient;
 import xyz.nextalone.nagram.NaConfig;
 
@@ -61,6 +62,7 @@ public class TranscribeHelper {
     public static final int TRANSCRIBE_WORKERSAI = 2;
     public static final int TRANSCRIBE_GEMINI = 3;
     public static final int TRANSCRIBE_OPENAI = 4;
+    public static final int TRANSCRIBE_VOSK = 5;
     private static final String GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/" + getString(R.string.LlmModelNameDefault) + ":generateContent?key=%s";
     private static final String GEMINI_PROMPT = """
     Your task is to create a detailed, verbatim transcription of the provided audio, formatted like closed captions for the hard of hearing. Follow these instructions strictly:
@@ -83,9 +85,27 @@ public class TranscribeHelper {
 
     private static final String OPENAI_COMPATIBLE_DEFAULT_PROMPT = GEMINI_PROMPT;
 
+    public static class SetupRequiredException extends Exception {
+
+        SetupRequiredException(String message) {
+            super(message);
+        }
+    }
+
+    public static void openSetup(BaseFragment fragment) {
+        if (fragment == null) {
+            return;
+        }
+        final app.exteraless.settings.OpenExteraChatsActivity activity =
+                new app.exteraless.settings.OpenExteraChatsActivity();
+        fragment.presentFragment(activity);
+        AndroidUtilities.runOnUIThread(() -> activity.scrollToRow("transcribeProvider", () -> {}));
+    }
+
     public static boolean useTranscribeAI(int account) {
         int provider = NaConfig.INSTANCE.getTranscribeProvider().Int();
         return provider == TRANSCRIBE_WORKERSAI || provider == TRANSCRIBE_GEMINI || provider == TRANSCRIBE_OPENAI ||
+                provider == TRANSCRIBE_VOSK ||
                 (!UserConfig.getInstance(account).isPremium() && provider == TRANSCRIBE_AUTO);
     }
 
@@ -400,14 +420,33 @@ public class TranscribeHelper {
             case TRANSCRIBE_OPENAI:
                 requestOpenAiCompatible(path, video, callback);
                 break;
+            case TRANSCRIBE_VOSK:
+                requestVosk(path, callback);
+                break;
             default:
                 requestWorkersAi(path, video, callback);
         }
     }
 
+    private static void requestVosk(String path, BiConsumer<String, Exception> callback) {
+        if (!VoskTranscriber.isReady()) {
+            callback.accept(null, new SetupRequiredException(
+                    getString(R.string.TranscribeSetupVosk)));
+            return;
+        }
+        VoskTranscriber.transcribe(path, (text, exception) -> {
+            if (exception == null && TextUtils.isEmpty(text)) {
+                callback.accept(null, new Exception(getString(R.string.VoskNothingRecognized)));
+            } else {
+                callback.accept(text, exception);
+            }
+        });
+    }
+
     private static void requestWorkersAi(String path, boolean video, BiConsumer<String, Exception> callback) {
         if (TextUtils.isEmpty(NaConfig.INSTANCE.getTranscribeProviderCfAccountID().String()) || TextUtils.isEmpty(NaConfig.INSTANCE.getTranscribeProviderCfApiToken().String())) {
-            callback.accept(null, new Exception(getString(R.string.CloudflareCredentialsNotSet)));
+            callback.accept(null, new SetupRequiredException(
+                    getString(R.string.TranscribeSetupCredentials)));
             return;
         }
         executorService.submit(() -> {
@@ -461,7 +500,8 @@ public class TranscribeHelper {
             apiKey = NaConfig.INSTANCE.getLlmProviderGeminiKey().String().split(",")[0].trim();
         }
         if (TextUtils.isEmpty(apiKey)) {
-            callback.accept(null, new Exception(getString(R.string.GeminiApiKeyNotSet)));
+            callback.accept(null, new SetupRequiredException(
+                    getString(R.string.TranscribeSetupCredentials)));
             return;
         }
         String customPrompt = NaConfig.INSTANCE.getTranscribeProviderGeminiPrompt().String();
@@ -547,7 +587,8 @@ public class TranscribeHelper {
         String customPrompt = NaConfig.INSTANCE.getTranscribeProviderOpenAiPrompt().String();
 
         if (TextUtils.isEmpty(apiBaseUrl) || TextUtils.isEmpty(model) || TextUtils.isEmpty(apiKey)) {
-            callback.accept(null, new Exception(getString(R.string.OpenAiCredentialsNotSet)));
+            callback.accept(null, new SetupRequiredException(
+                    getString(R.string.TranscribeSetupCredentials)));
             return;
         }
 

@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import tw.nekomimi.nekogram.NekoConfig;
+import tw.nekomimi.nekogram.helpers.TranscribeHelper;
 import tw.nekomimi.nekogram.helpers.MessageHelper;
 import xyz.nextalone.nagram.NaConfig;
 
@@ -165,7 +166,22 @@ public class AndroidUtil {
     }
 
     public static void showErrorDialog(Exception e) {
+        if (e instanceof TranscribeHelper.SetupRequiredException setup) {
+            showTranscribeSetupDialog(setup);
+            return;
+        }
         showErrorDialog(e.getLocalizedMessage());
+    }
+
+    private static void showTranscribeSetupDialog(TranscribeHelper.SetupRequiredException e) {
+        var fragment = LaunchActivity.getSafeLastFragment();
+        if (!BulletinFactory.canShowBulletin(fragment)) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> BulletinFactory.of(fragment)
+                .createSimpleBulletin(R.raw.error, e.getLocalizedMessage(), getString(R.string.TranscribeSetupAction),
+                        () -> TranscribeHelper.openSetup(LaunchActivity.getSafeLastFragment()))
+                .show());
     }
 
     public static void showErrorDialog(String message) {

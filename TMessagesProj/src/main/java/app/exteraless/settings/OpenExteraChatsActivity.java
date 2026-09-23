@@ -166,6 +166,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
     private int replaceEditedRow;
     private int showOnlineStatusRow;
     private int hideShareButtonRow;
+    private int hideGiftButtonRow;
     private int showResultsBeforeVotingRow;
     private int dateOfForwardedMsgRow;
     private int messageMenuGroupRow;
@@ -284,6 +285,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
     private int cloudflareCredentialsRow;
     private int geminiApiKeyRow;
     private int openAiCredentialsRow;
+    private int voskModelsRow;
     private int transcribeDividerRow;
 
     public OpenExteraChatsActivity() {
@@ -372,6 +374,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         replaceEditedRow = addRow("replaceEdited");
         showOnlineStatusRow = addRow("showOnlineStatus");
         hideShareButtonRow = addRow("hideShareButton");
+        hideGiftButtonRow = addRow("hideGiftButton");
         showResultsBeforeVotingRow = addRow("showResultsBeforeVoting");
         dateOfForwardedMsgRow = addRow("dateOfForwardedMsg", "DateOfForwardedMsg");
         messageMenuGroupRow = addRow("messageMenu");
@@ -550,6 +553,8 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         geminiApiKeyRow = addRow("llmProviderGeminiKey", "LlmProviderGeminiKey");
         openAiCredentialsRow = NaConfig.INSTANCE.getTranscribeProvider().Int() == TranscribeHelper.TRANSCRIBE_OPENAI
                 ? addRow("transcribeProviderOpenAI", "TranscribeProviderOpenAI") : -1;
+        voskModelsRow = NaConfig.INSTANCE.getTranscribeProvider().Int() == TranscribeHelper.TRANSCRIBE_VOSK
+                ? addRow("voskModels", "VoskModelsShort") : -1;
         transcribeDividerRow = addRow();
     }
 
@@ -1021,7 +1026,8 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
                 getString(R.string.TelegramPremium),
                 getString(R.string.TranscribeProviderWorkersAI),
                 getString(R.string.TranscribeProviderGemini),
-                getString(R.string.TranscribeProviderOpenAI)
+                getString(R.string.TranscribeProviderOpenAI),
+                getString(R.string.TranscribeProviderVosk)
         };
     }
 
@@ -1364,6 +1370,9 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         } else if (position == openAiCredentialsRow) {
             TranscribeHelper.showOpenAiCredentialsDialog(this);
             return;
+        } else if (position == voskModelsRow) {
+            presentFragment(new app.exteraless.speech.VoskSettingsActivity());
+            return;
         }
 
         if (position == tapToSwitchRecordRow) {
@@ -1556,6 +1565,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         if (position == replaceEditedRow) return NaConfig.INSTANCE.getUseEditedIcon();
         if (position == showOnlineStatusRow) return NaConfig.INSTANCE.getShowOnlineStatus();
         if (position == hideShareButtonRow) return NaConfig.INSTANCE.getHideShareButtonInChannel();
+        if (position == hideGiftButtonRow) return NaConfig.INSTANCE.getHideGiftButtonInChannel();
         if (position == showResultsBeforeVotingRow) return ChatsConfig.showResultsBeforeVoting;
         if (position == menuCopyPhotoRow) return NaConfig.INSTANCE.getShowCopyPhoto();
         if (position == menuSaveRow) return NekoConfig.showAddToSavedMessages;
@@ -2158,6 +2168,9 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
                 // В подпись подставляется название кнопки «Share».
                 cell.setTextAndCheck(LocaleController.formatString(R.string.OEChatsHideShareButton,
                         getString(R.string.ShareFile)), NaConfig.INSTANCE.getHideShareButtonInChannel().Bool(), true);
+            } else if (position == hideGiftButtonRow) {
+                cell.setTextAndCheck(getString(R.string.OEChatsHideGiftButton),
+                        NaConfig.INSTANCE.getHideGiftButtonInChannel().Bool(), true);
             } else if (position == showResultsBeforeVotingRow) {
                 cell.setTextAndValueAndCheck(getString(R.string.OEChatsShowResultsBeforeVoting),
                         getString(R.string.OEChatsShowResultsBeforeVotingInfo),
@@ -2270,9 +2283,12 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
             } else if (position == cloudflareCredentialsRow) {
                 cell.setText(getString(R.string.CloudflareCredentials), true);
             } else if (position == geminiApiKeyRow) {
-                cell.setText(getString(R.string.LlmProviderGeminiKey), openAiCredentialsRow != -1);
+                cell.setText(getString(R.string.LlmProviderGeminiKey),
+                        openAiCredentialsRow != -1 || voskModelsRow != -1);
             } else if (position == openAiCredentialsRow) {
                 cell.setText(getString(R.string.TranscribeProviderOpenAI), false);
+            } else if (position == voskModelsRow) {
+                cell.setText(getString(R.string.VoskModelsShort), false);
             }
         }
 
@@ -2361,7 +2377,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
                     || position == videoPlayerDecoderRow
                     || position == openLinkConfirmationRow || position == transcribeProviderRow
                     || position == cloudflareCredentialsRow || position == geminiApiKeyRow
-                    || position == openAiCredentialsRow;
+                    || position == openAiCredentialsRow || position == voskModelsRow;
         }
     }
 }

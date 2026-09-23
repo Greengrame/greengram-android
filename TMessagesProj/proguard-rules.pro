@@ -27,6 +27,7 @@
 -keep class org.telegram.tgnet.ConnectionsManager { <methods>; }
 -keep class org.telegram.tgnet.NativeByteBuffer { <methods>; }
 -keep class * extends org.telegram.ui.Components.UItem$UItemFactory { public <init>(...); }
+-keep class org.telegram.tgnet.** { *; }
 -keepnames class org.telegram.tgnet.** extends org.telegram.tgnet.TLObject
 -keep class org.telegram.tgnet.tl.** { *; }
 -keepclassmembernames,allowshrinking class org.telegram.ui.* { <fields>; }
@@ -214,3 +215,10 @@
 -keepclassmembers class org.telegram.tgnet.** { *; }
 -keepclassmembers class org.telegram.messenger.MessageObject { *; }
 -keepclassmembers class org.telegram.messenger.SendMessagesHelper { *; }
+
+-keep class org.vosk.** { *; }
+-keep class com.sun.jna.** { *; }
+-keep class * implements com.sun.jna.Library { *; }
+-keep class * extends com.sun.jna.Structure { *; }
+-dontwarn java.awt.**
+-dontwarn com.sun.jna.**

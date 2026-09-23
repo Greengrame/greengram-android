@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.12</title>
+            <description><![CDATA[Upstream plugin and runtime updates, on-device Vosk speech recognition, quick toggles, and refreshed chat avatar UI. Custom badges, the web editor, and update channels are preserved.]]></description>
+            <pubDate>Wed, 23 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1273</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.12</title>
+            <description><![CDATA[Обновлены плагины и runtime, добавлено распознавание речи Vosk на устройстве, быстрые переключатели и новый UI аватаров чатов. Кастомные значки, веб-редактор и каналы обновлений сохранены.]]></description>
+            <pubDate>Wed, 23 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1273-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.11</title>
             <description><![CDATA[Badges now support custom animated emoji icons, role colors, a details card with configurable rows, and the {USER} placeholder.]]></description>
             <pubDate>Sun, 21 Sep 2026 00:00:00 GMT</pubDate>

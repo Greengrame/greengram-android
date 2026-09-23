@@ -463,6 +463,35 @@ _JAVA_CLASS_DENIED = frozenset({
     "java.lang.Process",
 })
 
+_DENIED_CLASS_PACKAGES = frozenset(
+    name.rpartition(".")[0] for name in _JAVA_CLASS_DENIED)
+
+
+def _deny_denied_java_class(name, fromlist=()) -> None:
+    if type(name) is not str:
+        return
+    if name not in _JAVA_CLASS_DENIED and name not in _DENIED_CLASS_PACKAGES:
+        return
+    candidates = [name]
+    if fromlist:
+        candidates.extend(f"{name}.{item}" for item in fromlist
+                          if isinstance(item, str) and item != "*")
+    for candidate in candidates:
+        if candidate not in _JAVA_CLASS_DENIED:
+            continue
+        if unsafe_mode() or _engine_lookup():
+            return
+        try:
+            pid = _direct_plugin_caller()
+        except Exception:
+            return
+        if pid is None:
+            return
+        _log_once(f"{pid}|denied-class|{candidate}",
+                  f"plugin {pid!r}: class {candidate!r} is not available "
+                  f"to plugins")
+        raise ImportError(f"{candidate} is not available to plugins")
+
 
 def java_class_permission(name):
     """Разрешение, нужное для класса, или None."""
@@ -475,6 +504,39 @@ def java_class_permission(name):
         if prefix.endswith(".") and name.startswith(prefix):
             return perm
     return None
+
+
+def engine_java_class(name):
+    """Java-класс движка для кода SDK — в обход привязки к плагину.
+
+    `guard_java_class` считает просителем любой кадр плагина на стеке, и для
+    find_class это верно: SDK там пересылает просьбу плагина. Но сам SDK тоже
+    ходит за своими классами — `PluginServices`, `PythonBridge`, — и делает
+    это из кода, который запускают хуки и колбэки плагина. Такой запрос
+    записывался на плагин и отклонялся: `PluginServices` становился None, а
+    дальше hook_method молча возвращал None, и хуки не ставились при живых
+    разрешениях.
+
+    Флаг ставится только здесь и снимается сразу; плагину функция недоступна —
+    модуль лежит в _INTERNAL_MODULES.
+    """
+    previous = getattr(_context_state, "engine_lookup", False)
+    _context_state.engine_lookup = True
+    try:
+        from java import jclass
+        return jclass(name)
+    except Exception as e:
+        # Не через _log: он ходит в android_utils.log, а тот сам резолвит мост
+        # этой же функцией — на хосте без Chaquopy получалась бы рекурсия.
+        print(f"[exteraless:plugin_loader] engine class {name!r} unavailable: {e}",
+              file=sys.stderr)
+        return None
+    finally:
+        _context_state.engine_lookup = previous
+
+
+def _engine_lookup() -> bool:
+    return bool(getattr(_context_state, "engine_lookup", False))
 
 
 def guard_java_class(name):
@@ -491,7 +553,7 @@ def guard_java_class(name):
     (app.exteraless.plugins.PluginSinkGate), эта проверка лишь снимает самый
     ходовой путь: 178 плагинов зовут find_class, 94 — jclass.
     """
-    if unsafe_mode():
+    if unsafe_mode() or _engine_lookup():
         return True
     if name in _JAVA_CLASS_DENIED:
         pid = plugin_frame_owner()
@@ -868,6 +930,7 @@ def _sandboxed_import_module(name, package=None):
     """
     if package is None:
         _deny_internal_import(name)
+        _deny_denied_java_class(name)
     if package is None and type(name) is str \
             and name.partition(".")[0] in _GATED_ROOTS:
         try:
@@ -944,6 +1007,7 @@ def _sandboxed_import(name, globals=None, locals=None, fromlist=(), level=0):
     """
     if level == 0:
         _deny_internal_import(name, fromlist)
+        _deny_denied_java_class(name, fromlist)
     if level == 0 and type(name) is str and name.partition(".")[0] in _GATED_ROOTS:
         try:
             _guard_import(name, fromlist)
@@ -1115,6 +1179,99 @@ def _install_thread_marking() -> None:
         print(f"[exteraless:plugin_loader] thread marking failed: {e}", file=sys.stderr)
 
 
+def _mirror_on_native_module(name, original, replacement) -> None:
+    try:
+        import java
+        native = sys.modules.get("java.chaquopy") or getattr(java, "chaquopy", None)
+        if native is not None and getattr(native, name, None) is original:
+            setattr(native, name, replacement)
+    except Exception as e:
+        print(f"[exteraless:plugin_loader] native {name} guard failed: {e}",
+              file=sys.stderr)
+
+
+_COLOR_SHIM_CLASSES = (
+    "android.graphics.Paint",
+    "android.widget.TextView",
+    "android.graphics.Canvas",
+)
+
+_INT_MIN = -(2 ** 31)
+_INT_MAX = 2 ** 32
+
+
+def _coerce_int_args(args):
+    from java import jint
+    out = []
+    for arg in args:
+        if type(arg) is int and _INT_MIN <= arg < _INT_MAX:
+            out.append(jint(arg, truncate=True))
+        else:
+            out.append(arg)
+    return out
+
+
+def _int_shim(original):
+    def shim(self, *args):
+        try:
+            coerced = _coerce_int_args(args)
+        except Exception:
+            coerced = args
+        try:
+            bound = original.__get__(self, type(self))
+        except Exception:
+            return original(self, *coerced)
+        return bound(*coerced)
+
+    shim._exteraless_int_shim = True
+    return shim
+
+
+def _int_over_long_methods(class_name):
+    from java import jclass
+    signatures = {}
+    methods = jclass("java.lang.Class").forName(class_name).getMethods()
+    for i in range(len(methods)):
+        method = methods[i]
+        params = method.getParameterTypes()
+        types = tuple(str(params[j].getName()) for j in range(len(params)))
+        signatures.setdefault(str(method.getName()), set()).add(types)
+    out = []
+    for name, sigs in signatures.items():
+        for sig in sigs:
+            if "long" not in sig:
+                continue
+            twin = tuple("int" if t == "long" else t for t in sig)
+            if twin in sigs:
+                out.append(name)
+                break
+    return out
+
+
+def _install_color_int_shims() -> None:
+    from java import jclass
+    for class_name in _COLOR_SHIM_CLASSES:
+        try:
+            cls = jclass(class_name)
+            names = _int_over_long_methods(class_name)
+        except Exception as e:
+            print(f"[exteraless:plugin_loader] int shim scan failed for {class_name}: {e}",
+                  file=sys.stderr)
+            continue
+        for name in names:
+            try:
+                original = getattr(cls, name, None)
+                if original is None or getattr(original, "_exteraless_int_shim", False):
+                    continue
+                setattr(cls, name, _int_shim(original))
+                if not getattr(getattr(cls, name, None), "_exteraless_int_shim", False):
+                    print(f"[exteraless:plugin_loader] int shim for {class_name}.{name} "
+                          f"did not stick", file=sys.stderr)
+            except Exception as e:
+                print(f"[exteraless:plugin_loader] int shim for {class_name}.{name} "
+                      f"failed: {e}", file=sys.stderr)
+
+
 def _install_jclass_guard() -> None:
     """Обернуть java.jclass проверкой разрешений. Идемпотентно, не бросает.
 
@@ -1156,6 +1313,7 @@ def _install_jclass_guard() -> None:
 
         jclass._exteraless_guard = True
         java.jclass = jclass
+        _mirror_on_native_module("jclass", original, jclass)
     except Exception as e:
         print(f"[exteraless:plugin_loader] jclass guard failed: {e}", file=sys.stderr)
 
@@ -1253,6 +1411,7 @@ def _install_dynamic_proxy_guard() -> None:
 
         dynamic_proxy._exteraless_guard = True
         java.dynamic_proxy = dynamic_proxy
+        _mirror_on_native_module("dynamic_proxy", original, dynamic_proxy)
     except Exception as e:
         print(f"[exteraless:plugin_loader] dynamic_proxy guard failed: {e}",
               file=sys.stderr)
@@ -1363,6 +1522,7 @@ def _install_sandbox() -> None:
         audit_gate.install(sys.modules[__name__])
         _install_thread_marking()
         _install_jclass_guard()
+        _install_color_int_shims()
         _install_dynamic_proxy_guard()
         _install_interface_call_shim()
         from . import class_aliases
