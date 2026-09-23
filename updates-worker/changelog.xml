@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.12.1</title>
+            <description><![CDATA[Hotfix: packaged the required arm64 native libraries so the app starts correctly after updating.]]></description>
+            <pubDate>Wed, 23 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1274</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.12.1</title>
+            <description><![CDATA[Хотфикс: в APK добавлены необходимые arm64 native-библиотеки, чтобы приложение запускалось после обновления.]]></description>
+            <pubDate>Wed, 23 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1274-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.12</title>
             <description><![CDATA[Upstream plugin and runtime updates, on-device Vosk speech recognition, quick toggles, and refreshed chat avatar UI. Custom badges, the web editor, and update channels are preserved.]]></description>
             <pubDate>Wed, 23 Sep 2026 00:00:00 GMT</pubDate>
