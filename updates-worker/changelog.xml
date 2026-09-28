@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.12.3</title>
+            <description><![CDATA[Update improvements: if you postpone an update, a banner above the chat list reminds you, shows download progress and installs it in one tap. The app checks for updates again after a few hours in the background, keeps an already downloaded update, and shows what's new after updating.]]></description>
+            <pubDate>Mon, 28 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1276</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.12.3</title>
+            <description><![CDATA[Улучшения обновлений: если отложить обновление, над списком чатов появится баннер с напоминанием, прогрессом загрузки и установкой в одно касание. Приложение повторно проверяет обновления через несколько часов, не скачивает обновление заново и показывает, что нового, после установки.]]></description>
+            <pubDate>Mon, 28 Sep 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1276-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.12.2</title>
             <description><![CDATA[Upstream updates: settings sync through the exteraless cloud bot, sending scheduled messages while the online status is hidden, a prompt before opening stories in ghost mode, sending premium emoji as stickers without Premium, an option to hide the channel search button, a faster plugin engine, and many plugin, Last.fm and UI fixes.]]></description>
             <pubDate>Mon, 28 Sep 2026 00:00:00 GMT</pubDate>
