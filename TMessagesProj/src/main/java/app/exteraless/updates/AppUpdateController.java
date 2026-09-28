@@ -46,6 +46,7 @@ public final class AppUpdateController {
     private static final String APK_FILE_NAME = "exteraless-update.apk";
     private static final String PREFS_NAME = "libretg_updates";
     private static final String KEY_LAST_VERSION_CODE = "lastVersionCode";
+    private static final String KEY_INSTALL_ID = "installId";
     private static final long RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final Gson GSON = new Gson();
@@ -177,6 +178,17 @@ public final class AppUpdateController {
         return totalBytes;
     }
 
+    // Случайный идентификатор установки для раскатки и статистики: не связан с аккаунтом и сбрасывается вместе с данными приложения.
+    private static String getInstallId() {
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String installId = prefs.getString(KEY_INSTALL_ID, null);
+        if (installId == null) {
+            installId = java.util.UUID.randomUUID().toString();
+            prefs.edit().putString(KEY_INSTALL_ID, installId).apply();
+        }
+        return installId;
+    }
+
     private static void notifyStateChanged() {
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.appUpdateBannerChanged);
     }
@@ -198,21 +210,25 @@ public final class AppUpdateController {
         String query = "/update.json?package=" + URLEncoder.encode(packageName, "UTF-8");
         String json;
         try {
-            json = httpGet(BASE_URL + query, "application/json");
+            json = httpGet(BASE_URL + query, "application/json", true);
         } catch (Throwable ignored) {
             // Запасной workers.dev-адрес на случай недоступности своего домена.
-            json = httpGet(FALLBACK_BASE_URL + query, "application/json");
+            json = httpGet(FALLBACK_BASE_URL + query, "application/json", true);
         }
         return json == null ? null : GSON.fromJson(json, UpdateInfo.class);
     }
 
-    private static String httpGet(String url, String accept) throws Exception {
+    private static String httpGet(String url, String accept, boolean identify) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(8000);
         connection.setReadTimeout(10000);
         connection.setRequestProperty("Accept", accept);
         connection.setRequestProperty("Accept-Language", Locale.getDefault().toLanguageTag());
         connection.setRequestProperty("X-LibreTG-Package", ApplicationLoader.getApplicationId());
+        if (identify) {
+            connection.setRequestProperty("X-LibreTG-Install", getInstallId());
+            connection.setRequestProperty("X-LibreTG-Version", Integer.toString(BuildConfig.VERSION_CODE));
+        }
         try {
             if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 return null;
@@ -401,9 +417,9 @@ public final class AppUpdateController {
             try {
                 String xml;
                 try {
-                    xml = httpGet(BASE_URL + "/changelog.xml", "application/rss+xml");
+                    xml = httpGet(BASE_URL + "/changelog.xml", "application/rss+xml", false);
                 } catch (Throwable ignored) {
-                    xml = httpGet(FALLBACK_BASE_URL + "/changelog.xml", "application/rss+xml");
+                    xml = httpGet(FALLBACK_BASE_URL + "/changelog.xml", "application/rss+xml", false);
                 }
                 ChangelogEntry entry = xml == null ? null : findChangelogEntry(xml, currentVersionCode, Locale.getDefault().getLanguage());
                 if (entry != null && entry.description != null && !entry.description.isEmpty()) {
