@@ -86,8 +86,12 @@ def CHANGELOG_DRAFT_MARKER = 'DRAFT:'
 def registerUpdatePublisher = { String taskName, String variant, String assembleTask, String packageName, String apkKey, String manifestKey ->
     tasks.register(taskName) {
         group = 'publishing'
-        description = "Builds the ${variant} APK, uploads it to R2 and deploys the update Worker."
-        dependsOn(assembleTask)
+        description = "Builds the ${variant} APK, uploads it to R2 and deploys the update Worker. -PskipBuild publishes the already built APK."
+        // -PskipBuild: публиковать уже собранный APK без повторной сборки (версия сверяется с verCode ниже).
+        boolean skipBuild = project.hasProperty('skipBuild')
+        if (!skipBuild) {
+            dependsOn(assembleTask)
+        }
 
         doLast {
             File apkDirectory = file("TMessagesProj/build/outputs/apk/${variant}")
@@ -111,6 +115,13 @@ def registerUpdatePublisher = { String taskName, String variant, String assemble
             String artifactName = versionMatcher.group(1)
             String versionName = versionMatcher.group(2)
             int versionCode = Integer.parseInt(versionMatcher.group(3))
+            if (skipBuild) {
+                def configuredMatcher = (file('TMessagesProj/build.gradle').getText('UTF-8') =~ /(?m)^def verCode = (\d+)/)
+                String configuredCode = configuredMatcher.find() ? configuredMatcher.group(1) : 'none'
+                if (configuredCode != versionCode.toString()) {
+                    throw new GradleException("-PskipBuild: ${apk.name} is versionCode ${versionCode}, but TMessagesProj/build.gradle has verCode ${configuredCode}. Build it first or drop -PskipBuild.")
+                }
+            }
             MessageDigest digest = MessageDigest.getInstance('SHA-256')
             apk.withInputStream { input ->
                 byte[] buffer = new byte[8192]

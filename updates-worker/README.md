@@ -24,3 +24,11 @@ Local testing:
     npx wrangler dev          # then, in another shell:
     node test/smoke.mjs
     node --test "src/*.test.ts"
+
+## Publishing without rebuilding
+
+The publish tasks build the APK first. If you already built it (for example with `assembleRelease assembleDebug` to test it), pass `-PskipBuild` to publish the existing APK as is:
+
+    NATIVE_TARGET=arm64-v8a ./gradlew publishReleaseUpdate publishDebugUpdate -PskipBuild
+
+The task refuses to publish if the APK's version code doesn't match `verCode` in `TMessagesProj/build.gradle`.
