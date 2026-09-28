@@ -59,6 +59,7 @@
     <string name="OEChatsShowOnlineStatus">Показывать индикатор онлайна</string>
     <string name="OEChatsHideShareButton">Скрыть боковую кнопку «Поделиться»</string>
     <string name="OEChatsHideGiftButton">Скрыть кнопку подарков в каналах</string>
+    <string name="OEChatsHideSearchButton">Скрыть кнопку поиска в каналах</string>
     <string name="OEChatsShowResultsBeforeVoting">Показывать результаты до голосования</string>
     <string name="OEChatsHideReactions">Скрывать реакции</string>
     <string name="OEChatsHideReactionsChannels">Каналы</string>
@@ -130,4 +131,6 @@
     <string name="OEChatsAskWhenBotCommands">Отправке команд ботам</string>
     <string name="OEChatsHdrPhotos">HDR-фото</string>
     <string name="OEChatsHdrPhotosInfo">Показывать HDR-фото в полной яркости. Выключите, если фото темнеют.</string>
+    <string name="SendLockedCustomEmojiAsSticker">Премиум-эмодзи как стикеры</string>
+    <string name="SendLockedCustomEmojiAsStickerInfo">Без Premium премиум-эмодзи отправляются обычными стикерами. Поддерживаются только эмодзи WebP и WebM.</string>
 </resources>

@@ -368,6 +368,17 @@ public class PluginCell extends FrameLayout implements NotificationCenter.Notifi
                 delegate instanceof PluginPermissionsDelegate ? VISIBLE : GONE);
     }
 
+    private static final android.util.LruCache<String, CharSequence> FORMATTED_DESCRIPTIONS = new android.util.LruCache<>(64);
+
+    private static CharSequence formattedDescription(String description) {
+        CharSequence formatted = FORMATTED_DESCRIPTIONS.get(description);
+        if (formatted == null) {
+            formatted = LocaleUtils.fullyFormatText(description);
+            FORMATTED_DESCRIPTIONS.put(description, formatted);
+        }
+        return formatted;
+    }
+
     public void set(Plugin plugin, PluginCellDelegate delegate) {
         setDelegate(delegate);
         if (plugin == null) {
@@ -411,7 +422,7 @@ public class PluginCell extends FrameLayout implements NotificationCenter.Notifi
             descriptionView.setTypeface(AndroidUtilities.getTypeface("fonts/rmono.ttf"));
             descriptionView.setVisibility(VISIBLE);
         } else if (!TextUtils.isEmpty(model.description)) {
-            descriptionView.setText(LocaleUtils.fullyFormatText(model.description));
+            descriptionView.setText(formattedDescription(model.description));
             descriptionView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
             descriptionView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
             descriptionView.setTypeface(android.graphics.Typeface.DEFAULT);

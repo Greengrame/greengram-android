@@ -22,6 +22,9 @@ object ChatsConfig {
     private val sync = Any()
     private val configs = ArrayList<ConfigItem>()
 
+    @JvmStatic
+    fun getConfigTypes(): Map<String, Int> = configs.associate { it.key to it.type }
+
     @Volatile
     private var configLoaded = false
 
@@ -165,6 +168,9 @@ object ChatsConfig {
     /** Показывать результаты опроса до голосования (только UI). */
     @JvmField
     val showResultsBeforeVoting = addConfig("OEChatsShowResultsBeforeVoting", ConfigItem.configTypeBool, false)
+
+    @JvmField
+    val hideChannelSearchButton = addConfig("OEChatsHideChannelSearchButton", ConfigItem.configTypeBool, false)
 
     // ---- Камера (расширенные) ----
 
