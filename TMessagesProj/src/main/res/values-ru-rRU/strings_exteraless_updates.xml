@@ -18,6 +18,14 @@
     <string name="ExteraUpdateLater">Позже</string>
     <string name="ExteraUpdateDownloadFailed">Не удалось скачать обновление</string>
     <string name="ExteraUpdateInstallerFailed">Не удалось открыть установщик пакета</string>
+    <string name="ExteraUpdateBannerTitle">Доступна версия %1$s</string>
+    <string name="ExteraUpdateBannerText">Нажмите, чтобы обновить</string>
+    <string name="ExteraUpdateBannerDownloading">Загрузка версии %1$s</string>
+    <string name="ExteraUpdateBannerProgress">%1$d%% · %2$s из %3$s</string>
+    <string name="ExteraUpdateBannerReady">Версия %1$s загружена</string>
+    <string name="ExteraUpdateBannerInstall">Нажмите, чтобы установить</string>
+    <string name="ExteraUpdateWhatsNew">Что нового</string>
+    <string name="ExteraUpdateWhatsNewButton">Понятно</string>
     <string name="ExteraBadgeDeveloper">**%1$s** является членом команды разработчиков **LibreTG**.</string>
     <string name="ExteraBadgeSupporter">**%1$s** поддержал разработку **LibreTG**.</string>
     <string name="ExteraBadgeResource">**%1$s** является официальным ресурсом **LibreTG**.</string>

@@ -560,7 +560,9 @@ public abstract class BaseFragment {
         }
         isPaused = true;
         try {
-            if (visibleDialog != null && visibleDialog.isShowing() && dismissDialogOnPause(visibleDialog)) {
+            // Шиты обновления LibreTG переживают паузу: иначе системный диалог на старте закрывает «Что нового».
+            if (visibleDialog != null && visibleDialog.isShowing() && dismissDialogOnPause(visibleDialog)
+                    && !(visibleDialog instanceof app.exteraless.updates.AppUpdateBottomSheet)) {
                 visibleDialog.dismiss();
                 visibleDialog = null;
             }

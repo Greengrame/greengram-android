@@ -1,6 +1,10 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import groovy.json.JsonOutput
 import java.security.MessageDigest
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 buildscript {
     repositories {
@@ -77,6 +81,8 @@ def runPublishCommand = { File workingDirectory, List<String> arguments ->
     }
 }
 
+def CHANGELOG_DRAFT_MARKER = 'DRAFT:'
+
 def registerUpdatePublisher = { String taskName, String variant, String assembleTask, String packageName, String apkKey, String manifestKey ->
     tasks.register(taskName) {
         group = 'publishing'
@@ -121,6 +127,14 @@ def registerUpdatePublisher = { String taskName, String variant, String assemble
             if (!workerDirectory.isDirectory() || !changelog.isFile()) {
                 throw new GradleException('updates-worker is missing')
             }
+            String changelogText = changelog.getText('UTF-8')
+            def latestGuid = (changelogText =~ /<guid[^>]*>libretg-(\d+)/)
+            if (!latestGuid.find() || Integer.parseInt(latestGuid.group(1)) != versionCode) {
+                throw new GradleException("updates-worker/changelog.xml has no entry for versionCode ${versionCode} at the top. Run prepareUpdate first.")
+            }
+            if (changelogText.contains(CHANGELOG_DRAFT_MARKER)) {
+                throw new GradleException("updates-worker/changelog.xml still contains ${CHANGELOG_DRAFT_MARKER} entries. Rewrite them before publishing.")
+            }
 
             Map<String, Object> manifest = [
                     packageName: packageName,
@@ -162,3 +176,82 @@ def registerUpdatePublisher = { String taskName, String variant, String assemble
 
 registerUpdatePublisher('publishDebugUpdate', 'debug', ':TMessagesProj:assembleDebug', 'com.de.xxtg.beta', 'app-beta.apk', 'beta')
 registerUpdatePublisher('publishReleaseUpdate', 'release', ':TMessagesProj:assembleRelease', 'com.de.xxtg', 'app-release.apk', 'release')
+
+// Отдельная задача, а не шаг publish*: verCode читается на этапе конфигурации,
+// поэтому поднять его внутри той же сборки, что собирает APK, нельзя.
+tasks.register('prepareUpdate') {
+    group = 'publishing'
+    description = 'Bumps verCode and the version name, then drafts changelog entries from the git log. Pass -PversionName=X to set the name explicitly.'
+
+    doLast {
+        File buildFile = file('TMessagesProj/build.gradle')
+        File propertiesFile = file('gradle.properties')
+        File changelog = file('updates-worker/changelog.xml')
+
+        String buildText = buildFile.getText('UTF-8')
+        def codeMatcher = (buildText =~ /(?m)^def verCode = (\d+)\r?$/)
+        if (!codeMatcher.find()) {
+            throw new GradleException('Cannot find "def verCode = N" in TMessagesProj/build.gradle')
+        }
+        int oldCode = Integer.parseInt(codeMatcher.group(1))
+        int newCode = oldCode + 1
+
+        String propertiesText = propertiesFile.getText('UTF-8')
+        def nameMatcher = (propertiesText =~ /(?m)^APP_VERSION_NAME=([^\r\n]+)/)
+        if (!nameMatcher.find()) {
+            throw new GradleException('Cannot find APP_VERSION_NAME in gradle.properties')
+        }
+        String oldName = nameMatcher.group(1).trim()
+        String newName = project.findProperty('versionName')?.toString()
+        if (!newName) {
+            List<String> parts = oldName.split('\\.') as List<String>
+            if (!parts.last().isInteger()) {
+                throw new GradleException("Cannot bump version name ${oldName}; pass -PversionName=...")
+            }
+            parts[-1] = (Integer.parseInt(parts.last()) + 1).toString()
+            newName = parts.join('.')
+        }
+
+        // Черновик из коммитов с прошлой публикации (последнего изменения release-манифеста).
+        def gitOutput = { List<String> arguments ->
+            Process process = new ProcessBuilder(['git'] + arguments).directory(rootDir).redirectErrorStream(true).start()
+            String output = process.inputStream.getText('UTF-8')
+            if (process.waitFor() != 0) {
+                throw new GradleException("git ${arguments.join(' ')} failed: ${output}")
+            }
+            output.trim()
+        }
+        String lastPublish = gitOutput(['log', '-1', '--format=%H', '--', 'updates-worker/manifests/release.json'])
+        List<String> subjects = gitOutput(['log', '--no-merges', '--format=%s', lastPublish ? "${lastPublish}..HEAD".toString() : 'HEAD'])
+                .readLines()
+                .collect { it.replace('[skip publish]', '').trim() }
+                .findAll { it && !it.startsWith('Publish ') && !it.startsWith('Release ') }
+        String draft = subjects ? subjects.join('; ') : 'describe the changes'
+        String newline = buildText.contains('\r\n') ? '\r\n' : '\n'
+        String pubDate = ZonedDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS).format(DateTimeFormatter.RFC_1123_DATE_TIME)
+        def changelogItem = { String language, String guid ->
+            ["        <item>",
+             "            <libre:lang>${language}</libre:lang>",
+             "            <title>LibreTG ${newName}</title>",
+             "            <description><![CDATA[${CHANGELOG_DRAFT_MARKER} ${draft.replace(']]>', ']] >')}]]></description>",
+             "            <pubDate>${pubDate}</pubDate>",
+             "            <guid isPermaLink=\"false\">${guid}</guid>",
+             "        </item>"].join(newline) + newline
+        }
+
+        String changelogText = changelog.getText('UTF-8')
+        int firstItem = changelogText.indexOf('        <item>')
+        if (firstItem < 0) {
+            throw new GradleException('updates-worker/changelog.xml has no <item> to insert before')
+        }
+        changelog.setText(changelogText.substring(0, firstItem)
+                + changelogItem('en', "libretg-${newCode}")
+                + changelogItem('ru', "libretg-${newCode}-ru")
+                + changelogText.substring(firstItem), 'UTF-8')
+        buildFile.setText(buildText.replaceFirst(/(?m)^def verCode = \d+/, "def verCode = ${newCode}"), 'UTF-8')
+        propertiesFile.setText(propertiesText.replaceFirst(/(?m)^APP_VERSION_NAME=[^\r\n]+/, "APP_VERSION_NAME=${newName}"), 'UTF-8')
+
+        logger.lifecycle("Bumped ${oldName} (${oldCode}) -> ${newName} (${newCode}).")
+        logger.lifecycle("Rewrite the ${CHANGELOG_DRAFT_MARKER} entries in updates-worker/changelog.xml (en + ru), then run publishReleaseUpdate / publishDebugUpdate.")
+    }
+}

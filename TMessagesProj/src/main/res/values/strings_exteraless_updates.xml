@@ -18,6 +18,14 @@
     <string name="ExteraUpdateLater">Later</string>
     <string name="ExteraUpdateDownloadFailed">Update download failed</string>
     <string name="ExteraUpdateInstallerFailed">Cannot open package installer</string>
+    <string name="ExteraUpdateBannerTitle">Version %1$s is available</string>
+    <string name="ExteraUpdateBannerText">Tap to update</string>
+    <string name="ExteraUpdateBannerDownloading">Downloading version %1$s</string>
+    <string name="ExteraUpdateBannerProgress">%1$d%% · %2$s of %3$s</string>
+    <string name="ExteraUpdateBannerReady">Version %1$s is downloaded</string>
+    <string name="ExteraUpdateBannerInstall">Tap to install</string>
+    <string name="ExteraUpdateWhatsNew">What\'s new</string>
+    <string name="ExteraUpdateWhatsNewButton">Got it</string>
     <string name="ExteraBadgeDeveloper">**%1$s** is a member of the **LibreTG** development team.</string>
     <string name="ExteraBadgeSupporter">**%1$s** supported the development of **LibreTG**.</string>
     <string name="ExteraBadgeResource">**%1$s** is an official **LibreTG** resource.</string>

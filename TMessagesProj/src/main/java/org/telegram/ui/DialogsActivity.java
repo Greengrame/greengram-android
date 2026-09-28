@@ -14,6 +14,7 @@ import app.exteraless.drawer.DrawerContainer;
 import app.exteraless.drawer.MainMenuHelper;
 import app.exteraless.drawer.MainMenuItem;
 import app.exteraless.drawer.MainMenuLayout;
+import app.exteraless.updates.AppUpdateBanner;
 import app.exteraless.utils.AppUtils;
 
 import static org.telegram.messenger.AndroidUtilities.dp;
@@ -2987,6 +2988,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 .add(NotificationCenter.mainUserInfoChanged);
 
             globalObserversGroup.add(NotificationCenter.didSetPasscode);
+            globalObserversGroup.add(NotificationCenter.appUpdateBannerChanged);
         }
         observersGroup
             .add(NotificationCenter.messagesDeleted)
@@ -6211,6 +6213,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 false,
                 true
             );
+        } else if (folderId == 0 && communityId == 0 && AppUpdateBanner.isVisible()) {
+            dialogsHintCellVisible = true;
+            AppUpdateBanner.bind(this, dialogsHintCell);
         } else if (folderId == 0 && communityId == 0 && getMessagesController().pendingSuggestions.contains("SETUP_PASSKEY") && BuildVars.SUPPORTS_PASSKEYS) {
             dialogsHintCellVisible = true;
             dialogsHintCell.setOnClickListener(v -> {
@@ -10951,6 +10956,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             updateVisibleRows(MessagesController.UPDATE_MASK_SEND_STATE);
         } else if (id == NotificationCenter.didSetPasscode) {
             checkUi_itemPasscodeVisibility();
+        } else if (id == NotificationCenter.appUpdateBannerChanged) {
+            updateDialogsHint();
         } else if (id == NotificationCenter.needReloadRecentDialogsSearch) {
             if (searchViewPager != null && searchViewPager.dialogsSearchAdapter != null) {
                 searchViewPager.dialogsSearchAdapter.loadRecentSearch();
