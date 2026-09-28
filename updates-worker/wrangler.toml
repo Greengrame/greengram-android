@@ -11,3 +11,12 @@ routes = [
 [[r2_buckets]]
 binding = "UPDATES"
 bucket_name = "tg-updates"
+
+[[d1_databases]]
+binding = "STATS"
+database_name = "tg-updates-stats"
+database_id = "5278f113-6b1e-4701-b5d7-5cb93f9e9a5a"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["17 3 * * *"]
