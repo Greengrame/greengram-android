@@ -12,7 +12,8 @@ export interface ChannelView {
     liveVersionCode: number | null;
     liveVersionName: string | null;
     rollout: number;
-    stats: PackageStats;
+    // null, если D1 недоступна: страница всё равно показывает управление раскаткой.
+    stats: PackageStats | null;
 }
 
 const COLORS = ["#3f9be8", "#34c47c", "#f5a524", "#e5484d", "#8e4ec6", "#12a594"];
@@ -122,19 +123,26 @@ function renderChannel(view: ChannelView, today: string): string {
     const live = view.liveVersionCode === null
         ? "not published"
         : `${escapeHtml(view.liveVersionName ?? String(view.liveVersionCode))} (${view.liveVersionCode})`;
+    const channel = escapeHtml(view.channel);
+    const quick = [0, 20, 50, 100].map(value =>
+        `<button name="rollout" value="${value}"${value === view.rollout ? " class=\"current\"" : ""}>${value === 0 ? "Pause" : value + "%"}</button>`).join("");
+    const controls = `<h2>${escapeHtml(view.title)}</h2>
+<p>Live: <b>${live}</b> · Rollout: <b>${view.rollout}%</b></p>
+<form method="post" action="/stats/rollout" class="rollout"><input type="hidden" name="channel" value="${channel}">${quick}</form>
+<form method="post" action="/stats/rollout" class="rollout"><input type="hidden" name="channel" value="${channel}"><input type="number" name="rollout" min="0" max="100" value="${view.rollout}" required><button>Set</button></form>`;
+    if (view.stats === null) {
+        return `<section>
+${controls}
+<p class="muted">Stats unavailable right now (database error).</p>
+</section>`;
+    }
     const summary = summarizeActive(view.stats.active7d);
     const rows = summary.rows.length === 0
         ? `<p class="muted">No devices yet</p>`
         : `<table><tr><th>Version</th><th>Devices</th><th>Share</th></tr>${summary.rows.map(row =>
             `<tr><td>${escapeHtml(row.label)}</td><td>${row.devices}</td><td>${row.share}%</td></tr>`).join("")}</table>`;
-    const channel = escapeHtml(view.channel);
-    const quick = [0, 20, 50, 100].map(value =>
-        `<button name="rollout" value="${value}"${value === view.rollout ? " class=\"current\"" : ""}>${value === 0 ? "Pause" : value + "%"}</button>`).join("");
     return `<section>
-<h2>${escapeHtml(view.title)}</h2>
-<p>Live: <b>${live}</b> · Rollout: <b>${view.rollout}%</b></p>
-<form method="post" action="/stats/rollout" class="rollout"><input type="hidden" name="channel" value="${channel}">${quick}</form>
-<form method="post" action="/stats/rollout" class="rollout"><input type="hidden" name="channel" value="${channel}"><input type="number" name="rollout" min="0" max="100" value="${view.rollout}" required><button>Set</button></form>
+${controls}
 <h3>Active devices, last 7 days (${summary.total})</h3>
 ${rows}
 <p class="muted">Older app versions without an install ID: ${view.stats.legacy7d} checks (not unique)</p>

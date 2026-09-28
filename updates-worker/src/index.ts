@@ -150,7 +150,10 @@ async function handleStats(request: Request, env: Env, url: URL): Promise<Respon
             liveVersionCode: manifest?.versionCode ?? null,
             liveVersionName: manifest?.versionName ?? null,
             rollout: parseRollout(manifest?.rollout) ?? 100,
-            stats: await loadPackageStats(env.STATS, packageName, now)
+            stats: await loadPackageStats(env.STATS, packageName, now).catch(error => {
+                console.error("Failed to load stats", error);
+                return null;
+            })
         };
     }));
     return new Response(renderStatsPage(views, utcDay(now)), {
