@@ -65,7 +65,9 @@ public final class AppUpdateController {
     private static UpdateInfo update;
     private static boolean bannerHidden;
     private static int sheetShownVersionCode;
+    private static int bannerVersionCode;
     private static boolean whatsNewShown;
+    private static ChangelogEntry pendingWhatsNew;
     private static long downloadedBytes;
     private static long totalBytes;
     private static File readyFile;
@@ -83,7 +85,11 @@ public final class AppUpdateController {
     }
 
     public static void onAppResumed() {
-        if (started && lastCheckTime != 0 && state != STATE_DOWNLOADING
+        if (!started) {
+            return;
+        }
+        showPendingPrompts();
+        if (lastCheckTime != 0 && state != STATE_DOWNLOADING
                 && SystemClock.elapsedRealtime() - lastCheckTime >= RECHECK_INTERVAL_MS) {
             checkNow();
         }
@@ -97,23 +103,29 @@ public final class AppUpdateController {
         lastCheckTime = SystemClock.elapsedRealtime();
         EXECUTOR.execute(() -> {
             UpdateInfo info = null;
+            boolean succeeded = false;
             try {
                 info = loadManifest();
+                succeeded = true;
             } catch (Throwable e) {
                 FileLog.e("Update check failed", e);
             }
             final UpdateInfo loaded = info;
+            final boolean requestSucceeded = succeeded;
             AndroidUtilities.runOnUIThread(() -> {
                 checking = false;
-                onManifestLoaded(loaded);
+                onManifestLoaded(loaded, requestSucceeded);
             });
         });
     }
 
-    private static void onManifestLoaded(UpdateInfo info) {
-        boolean valid = info != null && info.versionCode > BuildConfig.VERSION_CODE
-                && ApplicationLoader.getApplicationId().equals(info.packageName)
-                && info.apkUrl != null && !info.apkUrl.isEmpty();
+    private static void onManifestLoaded(UpdateInfo info, boolean requestSucceeded) {
+        UpdateCheck.Outcome outcome = UpdateCheck.classify(requestSucceeded, info, BuildConfig.VERSION_CODE, ApplicationLoader.getApplicationId());
+        if (outcome == UpdateCheck.Outcome.FAILED) {
+            // Сбой сети или сервера не отменяет уже предложенное обновление (в т.ч. обязательное).
+            return;
+        }
+        boolean valid = outcome == UpdateCheck.Outcome.UPDATE;
         if (state == STATE_DOWNLOADING || state == STATE_READY) {
             if (!valid || info.versionCode == update.versionCode) {
                 return;
@@ -135,15 +147,46 @@ public final class AppUpdateController {
         }
         update = info;
         state = STATE_AVAILABLE;
-        if (info.versionCode != sheetShownVersionCode) {
-            sheetShownVersionCode = info.versionCode;
+        if (info.versionCode != bannerVersionCode) {
+            bannerVersionCode = info.versionCode;
             bannerHidden = false;
-            // Новый шит закрыл бы «Что нового»: в этой сессии о свежем обновлении сообщает только баннер.
-            if (!whatsNewShown) {
-                runWithFragment(fragment -> AppUpdateBottomSheet.show(fragment, info), 0);
-            }
         }
         notifyStateChanged();
+        showPendingPrompts();
+    }
+
+    // Шиты считаются показанными только после реального показа: процесс мог стартовать в фоне
+    // (пуш, виджет), и тогда показать их некому — повторим на следующем onAppResumed.
+    private static void showPendingPrompts() {
+        if (pendingWhatsNew != null) {
+            runWithFragment(fragment -> {
+                ChangelogEntry entry = pendingWhatsNew;
+                if (entry == null) {
+                    return true;
+                }
+                if (!AppUpdateBottomSheet.showWhatsNew(fragment, entry.title, entry.description)) {
+                    return false;
+                }
+                pendingWhatsNew = null;
+                whatsNewShown = true;
+                markVersionSeen();
+                return true;
+            }, 0);
+        } else if (!whatsNewShown && state == STATE_AVAILABLE && update != null && update.versionCode != sheetShownVersionCode) {
+            // Новый шит закрыл бы «Что нового»: в такой сессии о свежем обновлении сообщает только баннер.
+            runWithFragment(fragment -> {
+                UpdateInfo info = update;
+                if (whatsNewShown || pendingWhatsNew != null || state != STATE_AVAILABLE || info == null
+                        || info.versionCode == sheetShownVersionCode) {
+                    return true;
+                }
+                if (!AppUpdateBottomSheet.show(fragment, info)) {
+                    return false;
+                }
+                sheetShownVersionCode = info.versionCode;
+                return true;
+            }, 0);
+        }
     }
 
     public static int getState() {
@@ -208,14 +251,19 @@ public final class AppUpdateController {
     private static UpdateInfo loadManifest() throws Exception {
         String packageName = ApplicationLoader.getApplicationId();
         String query = "/update.json?package=" + URLEncoder.encode(packageName, "UTF-8");
-        String json;
+        String json = null;
         try {
             json = httpGet(BASE_URL + query, "application/json", true);
         } catch (Throwable ignored) {
-            // Запасной workers.dev-адрес на случай недоступности своего домена.
+        }
+        if (json == null) {
+            // Запасной workers.dev-адрес: свой домен недоступен или ответил ошибкой.
             json = httpGet(FALLBACK_BASE_URL + query, "application/json", true);
         }
-        return json == null ? null : GSON.fromJson(json, UpdateInfo.class);
+        if (json == null) {
+            throw new java.io.IOException("Update server returned an error");
+        }
+        return GSON.fromJson(json, UpdateInfo.class);
     }
 
     private static String httpGet(String url, String accept, boolean identify) throws Exception {
@@ -396,7 +444,6 @@ public final class AppUpdateController {
         if (lastVersionCode == currentVersionCode) {
             return;
         }
-        prefs.edit().putInt(KEY_LAST_VERSION_CODE, currentVersionCode).apply();
         EXECUTOR.execute(() -> apkFile().delete());
         boolean updated;
         if (lastVersionCode == 0) {
@@ -411,25 +458,46 @@ public final class AppUpdateController {
             updated = lastVersionCode < currentVersionCode;
         }
         if (!updated) {
+            markVersionSeen();
             return;
         }
         EXECUTOR.execute(() -> {
+            ChangelogEntry found = null;
+            boolean loaded = false;
             try {
-                String xml;
+                String xml = null;
                 try {
                     xml = httpGet(BASE_URL + "/changelog.xml", "application/rss+xml", false);
                 } catch (Throwable ignored) {
+                }
+                if (xml == null) {
                     xml = httpGet(FALLBACK_BASE_URL + "/changelog.xml", "application/rss+xml", false);
                 }
-                ChangelogEntry entry = xml == null ? null : findChangelogEntry(xml, currentVersionCode, Locale.getDefault().getLanguage());
-                if (entry != null && entry.description != null && !entry.description.isEmpty()) {
-                    AndroidUtilities.runOnUIThread(() -> whatsNewShown = true);
-                    runWithFragment(fragment -> AppUpdateBottomSheet.showWhatsNew(fragment, entry.title, entry.description), 0);
+                if (xml != null) {
+                    found = findChangelogEntry(xml, currentVersionCode, Locale.getDefault().getLanguage());
+                    loaded = true;
                 }
             } catch (Throwable e) {
                 FileLog.e("What's new check failed", e);
             }
+            final ChangelogEntry entry = found;
+            final boolean changelogLoaded = loaded;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (entry != null && entry.description != null && !entry.description.isEmpty()) {
+                    pendingWhatsNew = entry;
+                    showPendingPrompts();
+                } else if (changelogLoaded) {
+                    // Для этой версии заметок нет — показывать нечего.
+                    markVersionSeen();
+                }
+                // Если журнал не загрузился, версия не отмечается: попробуем при следующем запуске.
+            });
         });
+    }
+
+    private static void markVersionSeen() {
+        ApplicationLoader.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putInt(KEY_LAST_VERSION_CODE, BuildConfig.VERSION_CODE).apply();
     }
 
     private static ChangelogEntry findChangelogEntry(String xml, int versionCode, String language) throws Exception {
