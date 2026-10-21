@@ -302,6 +302,24 @@ def chaquopySourceDir = file('chaquopy')
 def chaquopyRuntimeDir = layout.buildDirectory.dir('chaquopy/runtime').get().asFile
 def chaquopyTarget = com.chaquo.python.internal.Common.PYTHON_VERSIONS.find { it.key.startsWith("${chaquopyPythonVersion}.") }
 def chaquopyAbis = android.defaultConfig.ndk.abiFilters.sort(false)
+def chaquopyWorkDir = layout.buildDirectory.dir('chaquopy/work').get().asFile
+def isWindowsHost = System.getProperty('os.name').toLowerCase().contains('windows')
+// build.sh is written for Linux: on Windows it runs under Git Bash, which eats backslashes.
+def toBashPath = { String p -> isWindowsHost ? p.replace('\\', '/') : p }
+// CreateProcess looks in System32 before PATH, and System32\bash.exe is the WSL launcher.
+def bashExe = !isWindowsHost ? 'bash' : (System.getenv('PATH').split(File.pathSeparator)
+        .collect { new File(it, 'bash.exe') }
+        .find { it.isFile() && !it.path.toLowerCase().contains('system32') && !it.path.toLowerCase().contains('windowsapps') }
+        ?.path ?: 'bash')
+// python3 on Windows is usually the Store stub, the real one is "python".
+def chaquopyScriptPython = chaquopyBuildPython ?: (isWindowsHost ? 'python' : 'python3')
+def runOrFail = { List<String> cmd ->
+    def proc = new ProcessBuilder(cmd).redirectErrorStream(true).start()
+    def out = proc.inputStream.text
+    if (proc.waitFor() != 0) {
+        throw new GradleException("${cmd.join(' ')} failed:\n$out")
+    }
+}
 
 def chaquopyRuntimeTasks = chaquopyAbis.collect { String abi ->
     tasks.register("buildChaquopyRuntime${abi.split(/[-_]/)*.capitalize().join()}", Exec) {
@@ -318,18 +336,58 @@ def chaquopyRuntimeTasks = chaquopyAbis.collect { String abi ->
         }).withPathSensitivity(PathSensitivity.RELATIVE)
         inputs.files(targetZip).withPathSensitivity(PathSensitivity.NAME_ONLY)
         outputs.dir(outputDir)
-        commandLine 'bash', new File(chaquopySourceDir, 'exteraless/build.sh').path
+        commandLine bashExe, toBashPath(new File(chaquopySourceDir, 'exteraless/build.sh').path)
         environment('ABI', abi)
-        environment('OUT', outputDir.path)
-        environment('WORKSPACE', layout.buildDirectory.dir('chaquopy/work').get().asFile.path)
-        environment('PYTHON', chaquopyBuildPython ?: 'python3')
+        environment('OUT', toBashPath(outputDir.path))
+        environment('WORKSPACE', toBashPath(chaquopyWorkDir.path))
+        environment('PYTHON', chaquopyScriptPython)
         environment('PYTHON_VERSION', chaquopyPythonVersion)
+        // Chaquopy's CMakeLists asks for a minimum below 3.5, which CMake 4 refuses.
+        environment('CMAKE_POLICY_VERSION_MINIMUM', '3.5')
         doFirst {
             if (!new File(chaquopySourceDir, 'product/runtime').isDirectory()) {
                 throw new GradleException('Chaquopy sources are missing, run: git submodule update --init TMessagesProj/chaquopy')
             }
-            environment('NDK', androidComponents.sdkComponents.ndkDirectory.get().asFile.path)
-            environment('PYTHON_TARGET_ZIP', targetZip.singleFile.path)
+            environment('NDK', toBashPath(androidComponents.sdkComponents.ndkDirectory.get().asFile.path))
+            environment('PYTHON_TARGET_ZIP', toBashPath(targetZip.singleFile.path))
+            // build.sh expects venv/bin, Windows venvs only have Scripts: make the venv here and link bin to it.
+            def venv = new File(chaquopyWorkDir, 'venv')
+            if (isWindowsHost && !new File(venv, 'bin/cython.exe').exists()) {
+                venv.parentFile.mkdirs()
+                runOrFail([chaquopyScriptPython, '-m', 'venv', venv.path])
+                runOrFail([new File(venv, 'Scripts/pip.exe').path, 'install', '-q', 'Cython==3.0.11'])
+                runOrFail(['cmd', '/c', 'mklink', '/J', new File(venv, 'bin').path, new File(venv, 'Scripts').path])
+            }
+            // Git Bash's unzip only takes the top level of 'include/*', so Python.h never lands.
+            // Unpack the prefix here, build.sh skips it when the source file matches.
+            def zipPath = toBashPath(targetZip.singleFile.path)
+            def prefix = new File(chaquopyWorkDir, "prefix/$abi")
+            def sourceFile = new File(prefix, 'source')
+            if (isWindowsHost && (!sourceFile.isFile() || sourceFile.text.trim() != zipPath)) {
+                prefix.deleteDir()
+                new File(prefix, 'lib').mkdirs()
+                def libName = "jniLibs/$abi/libpython${chaquopyPythonVersion}.so"
+                new java.util.zip.ZipFile(targetZip.singleFile).withCloseable { zip ->
+                    zip.entries().each { entry ->
+                        File dest = null
+                        if (entry.name.startsWith('include/')) {
+                            dest = new File(prefix, entry.name)
+                        } else if (entry.name == libName) {
+                            dest = new File(prefix, "lib/libpython${chaquopyPythonVersion}.so")
+                        }
+                        if (dest == null) {
+                            return
+                        }
+                        if (entry.isDirectory()) {
+                            dest.mkdirs()
+                        } else {
+                            dest.parentFile.mkdirs()
+                            zip.getInputStream(entry).withCloseable { dest.bytes = it.bytes }
+                        }
+                    }
+                }
+                sourceFile.text = zipPath + '\n'
+            }
         }
     }
 }
