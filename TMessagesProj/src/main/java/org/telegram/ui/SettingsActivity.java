@@ -1640,6 +1640,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 break;
         }
 
+        // Канал обновлений LibreTG задаётся пакетом сборки, переключатель здесь ничего бы не менял.
+        if (tw.nekomimi.nekogram.helpers.remote.BaseRemoteHelper.hasMetadataChannel())
         builder.addItem(getString(R.string.AutoCheckUpdateSwitch) + currentChannel, R.drawable.sync_outline_28, (it) -> {
             BottomBuilder switchBuilder = new BottomBuilder(getParentActivity());
             switchBuilder.addTitle(getString(R.string.AutoCheckUpdateSwitch));

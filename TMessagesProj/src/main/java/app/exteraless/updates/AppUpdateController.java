@@ -67,6 +67,8 @@ public final class AppUpdateController {
     private static int sheetShownVersionCode;
     private static int bannerVersionCode;
     private static boolean whatsNewShown;
+    private static boolean manualCheck;
+    private static boolean forceSheet;
     private static ChangelogEntry pendingWhatsNew;
     private static long downloadedBytes;
     private static long totalBytes;
@@ -95,6 +97,12 @@ public final class AppUpdateController {
         }
     }
 
+    // Ручная проверка из меню версии: результат всегда виден — шит обновления либо буллетин.
+    public static void checkManually() {
+        manualCheck = true;
+        checkNow();
+    }
+
     public static void checkNow() {
         if (checking) {
             return;
@@ -114,7 +122,14 @@ public final class AppUpdateController {
             final boolean requestSucceeded = succeeded;
             AndroidUtilities.runOnUIThread(() -> {
                 checking = false;
+                boolean manual = manualCheck;
+                manualCheck = false;
+                // Шит для ручной проверки показывается, даже если в этой сессии его уже закрывали.
+                forceSheet = manual;
                 onManifestLoaded(loaded, requestSucceeded);
+                if (manual) {
+                    reportManualCheck(requestSucceeded);
+                }
             });
         });
     }
@@ -155,6 +170,34 @@ public final class AppUpdateController {
         showPendingPrompts();
     }
 
+    private static void reportManualCheck(boolean requestSucceeded) {
+        if (!requestSucceeded) {
+            forceSheet = false;
+            showBulletin(LocaleController.getString(R.string.OEUpdateCheckFailed), true);
+        } else if (state == STATE_NONE) {
+            forceSheet = false;
+            showBulletin(LocaleController.getString(R.string.YourVersionIsLatestNax), false);
+        } else if (state == STATE_READY) {
+            forceSheet = false;
+            startUpdate();
+        } else if (state == STATE_DOWNLOADING) {
+            forceSheet = false;
+            showBulletin(LocaleController.getString(R.string.ExteraUpdateDownloading), false);
+        }
+    }
+
+    private static void showBulletin(String text, boolean error) {
+        BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+        if (fragment == null) {
+            return;
+        }
+        if (error) {
+            BulletinFactory.of(fragment).createErrorBulletin(text).show();
+        } else {
+            BulletinFactory.of(fragment).createSimpleBulletin(R.raw.done, text).show();
+        }
+    }
+
     // Шиты считаются показанными только после реального показа: процесс мог стартовать в фоне
     // (пуш, виджет), и тогда показать их некому — повторим на следующем onAppResumed.
     private static void showPendingPrompts() {
@@ -172,17 +215,19 @@ public final class AppUpdateController {
                 markVersionSeen();
                 return true;
             }, 0);
-        } else if (!whatsNewShown && state == STATE_AVAILABLE && update != null && update.versionCode != sheetShownVersionCode) {
+        } else if (state == STATE_AVAILABLE && update != null
+                && (forceSheet || !whatsNewShown && update.versionCode != sheetShownVersionCode)) {
             // Новый шит закрыл бы «Что нового»: в такой сессии о свежем обновлении сообщает только баннер.
             runWithFragment(fragment -> {
                 UpdateInfo info = update;
-                if (whatsNewShown || pendingWhatsNew != null || state != STATE_AVAILABLE || info == null
-                        || info.versionCode == sheetShownVersionCode) {
+                if (pendingWhatsNew != null || state != STATE_AVAILABLE || info == null
+                        || !forceSheet && (whatsNewShown || info.versionCode == sheetShownVersionCode)) {
                     return true;
                 }
                 if (!AppUpdateBottomSheet.show(fragment, info)) {
                     return false;
                 }
+                forceSheet = false;
                 sheetShownVersionCode = info.versionCode;
                 return true;
             }, 0);

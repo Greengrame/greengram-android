@@ -6182,7 +6182,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             if (progress != null) {
                 progress.end();
             }
-            app.exteraless.updater.GitHubUpdater.check(force || progress != null);
+            // LibreTG обновляется со своего сервера: GitHub-релизы exteraless подписаны другим ключом и идут под другим пакетом.
+            if (force || progress != null) {
+                app.exteraless.updates.AppUpdateController.checkManually();
+            }
             return;
         }
        /*if (!ApplicationLoader.isStandaloneBuild() && !ApplicationLoader.isBetaBuild()) {
