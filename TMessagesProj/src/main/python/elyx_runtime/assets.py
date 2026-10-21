@@ -191,12 +191,12 @@ class Asset:
         if width is None or height is None:
             return svg_helper.getDrawable(self.content_string())
         bitmap_drawable = _java_class("android.graphics.drawable.BitmapDrawable")
-        bitmap = svg_helper.getBitmap(self.java_file, int(width), int(height), False)
+        bitmap = svg_helper.getBitmap(self.content_string(), int(width), int(height), False)
         return bitmap_drawable(_resources(), bitmap)
 
     def to_svg_bitmap(self, width: int = 32, height: int = 32, white: bool = False):
         svg_helper = _java_class("org.telegram.messenger.SvgHelper")
-        return svg_helper.getBitmap(self.java_file, int(width), int(height), bool(white))
+        return svg_helper.getBitmap(self.content_string(), int(width), int(height), bool(white))
 
     def to_svg_thumb(self, color_key: str, alpha: float = 1.0):
         """Themed SVG drawable tinted with a Theme color key."""

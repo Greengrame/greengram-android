@@ -52,7 +52,7 @@ public class PluginCell extends FrameLayout implements NotificationCenter.Notifi
     private final LinearLayout headerLayout;
     private final LinearLayout textsLayout;
     private final TextView pluginNameView;
-    private final TextView subtitleView;
+    private final LinkSpanDrawable.LinksTextView subtitleView;
     private final LinkSpanDrawable.LinksTextView descriptionView;
     private final View divider;
     private final ImageView shareButton;
@@ -234,10 +234,11 @@ public class PluginCell extends FrameLayout implements NotificationCenter.Notifi
         textsLayout.addView(pluginNameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
                 LayoutHelper.WRAP_CONTENT));
 
-        subtitleView = new TextView(context);
+        subtitleView = new LinkSpanDrawable.LinksTextView(context);
         subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         subtitleView.setEllipsize(TextUtils.TruncateAt.END);
         subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        subtitleView.setLinkTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteLinkText));
         textsLayout.addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
                 LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
 
@@ -381,16 +382,9 @@ public class PluginCell extends FrameLayout implements NotificationCenter.Notifi
 
     public void set(Plugin plugin, PluginCellDelegate delegate) {
         setDelegate(delegate);
-        if (plugin == null) {
-            setModel(null);
-            return;
-        }
-        PluginsController controller = PluginsController.getInstance();
-        setModel(new Model(plugin, controller.isPluginPinned(plugin.id),
-                controller.isCompactView(), delegate));
-    }
-
-    private void setModel(Model model) {
+        final PluginsController controller = PluginsController.getInstance();
+        final Model model = plugin == null ? null : new Model(plugin, controller.isPluginPinned(plugin.id),
+                controller.isCompactView(), delegate);
         if (model == null || model.plugin == null) {
             pluginId = null;
             pluginIcon = null;
@@ -411,7 +405,7 @@ public class PluginCell extends FrameLayout implements NotificationCenter.Notifi
         }
 
         pluginNameView.setText(model.name);
-        subtitleView.setText(model.subtitle);
+        subtitleView.setText(com.exteragram.messenger.utils.text.LocaleUtils.formatWithUsernames(model.subtitle));
 
         if (model.loadError != null) {
             // Ошибка вытесняет описание: если плагин не поднялся, всё остальное

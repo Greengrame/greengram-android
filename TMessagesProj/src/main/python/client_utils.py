@@ -887,11 +887,22 @@ def get_client(account=None) -> AccountClient:
 
 # NotificationCenter
 
-class NotificationCenterDelegate:
+def _notification_delegate_base():
+    try:
+        from java import dynamic_proxy
+        return dynamic_proxy(_jclass(
+            "org.telegram.messenger.NotificationCenter$NotificationCenterDelegate"))
+    except Exception:
+        return object
+
+
+class NotificationCenterDelegate(_notification_delegate_base()):
     """Python base for NotificationCenter.NotificationCenterDelegate.
 
-    Subclass it and override didReceivedNotification(id, account, args).
-    Pass the `.java` proxy to Java APIs, or use start_observing().
+    The instance itself is the Java delegate: pass it straight to
+    addObserver/removeObserver, like on exteraGram. Override
+    didReceivedNotification(id, account, args) in a subclass or assign it on
+    the instance. `.java` is kept for plugins written against the old proxy.
 
     NOTE: the hook-account scope does NOT propagate into
     didReceivedNotification — bind explicitly with get_client(account)
@@ -901,27 +912,9 @@ class NotificationCenterDelegate:
     def didReceivedNotification(self, notification_id, account, args):
         """Override in a subclass. `args` is a Java Object[] array."""
 
-    def _create_proxy(self):
-        from java import dynamic_proxy
-
-        interface = _jclass(
-            "org.telegram.messenger.NotificationCenter$NotificationCenterDelegate")
-        outer = self
-
-        class _Proxy(dynamic_proxy(interface)):
-            def didReceivedNotification(self, notification_id, account, args):
-                outer.didReceivedNotification(notification_id, account, args)
-
-        return _Proxy()
-
     @property
     def java(self):
-        """The Java-side proxy of this delegate (created lazily)."""
-        proxy = self.__dict__.get("_java_proxy")
-        if proxy is None:
-            proxy = self._create_proxy()
-            self.__dict__["_java_proxy"] = proxy
-        return proxy
+        return self
 
     def start_observing(self, notification_id: int, account=None):
         """addObserver(self) on the account's NotificationCenter."""

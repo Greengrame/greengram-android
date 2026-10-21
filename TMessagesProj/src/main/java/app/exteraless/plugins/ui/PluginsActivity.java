@@ -64,6 +64,9 @@ public class PluginsActivity extends BaseFragment {
 
     private static final int MENU_SEARCH = 0;
     private static final int MENU_INFO = 1;
+    private static final int MENU_OTHER = 10;
+    private static final int MENU_EXPORT_LOGS = 3;
+    private static final int MENU_CLEAR_LOGS = 4;
 
     private static final int ID_ENGINE_TOGGLE = -1;
 
@@ -86,6 +89,13 @@ public class PluginsActivity extends BaseFragment {
                     finishFragment();
                 } else if (id == MENU_INFO) {
                     presentFragment(new PluginsInfoActivity());
+                } else if (id == MENU_EXPORT_LOGS) {
+                    exportPluginLogs();
+                } else if (id == MENU_CLEAR_LOGS) {
+                    app.exteraless.plugins.PluginLog.clear();
+                    BulletinFactory.of(PluginsActivity.this)
+                            .createSimpleBulletin(R.raw.done, getString(R.string.PluginsLogsCleared))
+                            .show();
                 }
             }
         });
@@ -109,6 +119,10 @@ public class PluginsActivity extends BaseFragment {
                                 });
         search.setSearchFieldHint(getString(R.string.Search));
         actionBar.createMenu().addItem(MENU_INFO, R.drawable.msg_info);
+        org.telegram.ui.ActionBar.ActionBarMenuItem other =
+                actionBar.createMenu().addItem(MENU_OTHER, R.drawable.ic_ab_other);
+        other.addSubItem(MENU_EXPORT_LOGS, R.drawable.msg_share, getString(R.string.PluginsExportLogs));
+        other.addSubItem(MENU_CLEAR_LOGS, R.drawable.msg_delete, getString(R.string.PluginsClearLogs));
 
         FrameLayout contentView = new FrameLayout(context);
         contentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
@@ -174,6 +188,23 @@ public class PluginsActivity extends BaseFragment {
             }
         }
         return filtered;
+    }
+
+    private void exportPluginLogs() {
+        final android.app.Activity activity = getParentActivity();
+        if (activity == null) {
+            return;
+        }
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            final File file = app.exteraless.plugins.PluginLog.export();
+            AndroidUtilities.runOnUIThread(() -> {
+                if (file == null) {
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.ErrorOccurred)).show();
+                    return;
+                }
+                tw.nekomimi.nekogram.utils.ShareUtil.shareFile(activity, file);
+            });
+        });
     }
 
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
@@ -314,6 +345,9 @@ public class PluginsActivity extends BaseFragment {
             String ext = source.getName().contains(".")
                     ? source.getName().substring(source.getName().lastIndexOf('.'))
                     : ".plugin";
+            if (ext.equalsIgnoreCase(".py")) {
+                ext = ".plugin";
+            }
             File copy = new File(dir, plugin.id + ext);
             try (InputStream in = new java.io.FileInputStream(source);
                  FileOutputStream out = new FileOutputStream(copy)) {

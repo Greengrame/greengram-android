@@ -19,6 +19,7 @@ import inspect
 import json
 import os
 import re
+import logging
 import sys
 import threading
 from collections import namedtuple
@@ -596,6 +597,12 @@ def guard_java_class(name):
     perm = " или ".join(wanted)
     _log_once(f"{pid}|jclass|{name}",
               f"plugin {pid!r}: class {name!r} refused, missing {perm!r}")
+    try:
+        java = _permissions()
+        if java is not None:
+            java.check(pid, wanted[0], f"class {name}")
+    except Exception:
+        pass
     try:
         from . import audit_gate
         audit_gate.note_denied_class(pid, name, perm)
@@ -1674,6 +1681,84 @@ def _install_interface_call_shim() -> None:
               file=sys.stderr)
 
 
+_LOG_LEVELS = {10: "D", 20: "I", 30: "W", 40: "E", 50: "F"}
+
+
+def _forward_log(level: str, text: str) -> None:
+    java = _permissions()
+    if java is None or not text:
+        return
+    try:
+        owner = caller_plugin_id()
+    except Exception:
+        owner = None
+    try:
+        java.logStream(owner, level, text)
+    except Exception:
+        pass
+
+
+class _PluginLogStream:
+    def __init__(self, target, level: str):
+        self._target = target
+        self._level = level
+        self._local = threading.local()
+
+    def write(self, text):
+        result = self._target.write(text) if self._target is not None else len(text)
+        try:
+            self._capture(text)
+        except Exception:
+            pass
+        return result
+
+    def _capture(self, text) -> None:
+        if not isinstance(text, str) or getattr(self._local, "busy", False):
+            return
+        buffer = getattr(self._local, "buffer", "") + text
+        if "\n" in buffer:
+            head, _, buffer = buffer.rpartition("\n")
+        elif len(buffer) > 8192:
+            head, buffer = buffer, ""
+        else:
+            self._local.buffer = buffer
+            return
+        self._local.buffer = buffer
+        self._local.busy = True
+        try:
+            _forward_log(self._level, head)
+        finally:
+            self._local.busy = False
+
+    def flush(self):
+        if self._target is not None:
+            self._target.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._target, name)
+
+
+class _PluginLogHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            text = self.format(record)
+        except Exception:
+            return
+        _forward_log(_LOG_LEVELS.get(record.levelno, "I"), text)
+
+
+def _install_log_capture() -> None:
+    if not isinstance(sys.stdout, _PluginLogStream):
+        sys.stdout = _PluginLogStream(sys.stdout, "I")
+    if not isinstance(sys.stderr, _PluginLogStream):
+        sys.stderr = _PluginLogStream(sys.stderr, "W")
+    root = logging.getLogger()
+    if not any(isinstance(handler, _PluginLogHandler) for handler in root.handlers):
+        handler = _PluginLogHandler()
+        handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+        root.addHandler(handler)
+
+
 def _install_sandbox() -> None:
     """Поставить финдер и врапперы импорта/open. Идемпотентно, не бросает."""
     global _original_import, _original_import_module, _original_open
@@ -1702,6 +1787,7 @@ def _install_sandbox() -> None:
         _install_jclass_guard()
         _install_color_int_shims()
         _install_dual_member_setters()
+        _install_log_capture()
         _install_dynamic_proxy_guard()
         _install_interface_call_shim()
         from . import class_aliases
@@ -1893,8 +1979,52 @@ def _preload_neighbour_plugins(path: str, plugin_id: str, visiting: Optional[set
             _log(f"cannot preload {root} for {plugin_id}: {type(e).__name__}: {e}")
 
 
+_TL_CONTAINERS = (
+    "update", "stories", "account", "chatlists", "stars", "bots", "phone", "payments",
+    "stats", "forum", "fragment", "iv", "aicompose", "communities", "ephemeral", "keyboard",
+)
+_TL_REFERENCE = re.compile(r"TLRPC\.(TL_\w+)")
+_TL_MISSING = set()
+
+
+def _attach_moved_tl_classes(path: str) -> None:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as source:
+            names = set(_TL_REFERENCE.findall(source.read()))
+    except Exception:
+        return
+    if not names:
+        return
+    try:
+        from java import jclass
+        tlrpc = jclass("org.telegram.tgnet.TLRPC")
+    except Exception:
+        return
+    for name in names:
+        if name in _TL_MISSING:
+            continue
+        try:
+            getattr(tlrpc, name)
+            continue
+        except Exception:
+            pass
+        for container in _TL_CONTAINERS:
+            try:
+                moved = jclass(f"org.telegram.tgnet.tl.TL_{container}${name}")
+            except Exception:
+                continue
+            try:
+                _set_class_attr(tlrpc, name, moved)
+            except Exception:
+                pass
+            break
+        else:
+            _TL_MISSING.add(name)
+
+
 def _import_module(path: str, plugin_id: str):
     _ensure_plugins_dir_on_path()
+    _attach_moved_tl_classes(path)
     module_name = _module_name_for(plugin_id)
     existing = sys.modules.get(module_name)
     if existing is not None and _same_file(getattr(existing, "__file__", None), path):
@@ -2305,6 +2435,14 @@ def _setting_identity_value(value, seen=None):
     return [type(value).__module__, type(value).__qualname__, id(value)]
 
 
+def _setting_shape_value(value):
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if isinstance(value, tuple):
+        return [_setting_shape_value(entry) for entry in value]
+    return [type(value).__module__, type(value).__qualname__]
+
+
 def _setting_callback_ident(callback, seen=None):
     if callback is None:
         return None
@@ -2345,7 +2483,7 @@ def _item_ident(item, scope: str, index: int) -> str:
                      for field in ("on_click", "on_long_click", "create_sub_fragment")]
         native_id = _setting_identity_value(getattr(getattr(item, "item", None), "id", None))
         custom = [getattr(item, field, None) for field in ("view", "factory", "factory_args")]
-        name.extend([callbacks, native_id, [_setting_identity_value(value) for value in custom]])
+        name.extend([callbacks, native_id, [_setting_shape_value(value) for value in custom]])
         if not any(name[1:4]) and not any(callbacks) and native_id is None and not any(value is not None for value in custom):
             name.append(index)
     return json.dumps([scope, type(item).__name__, name], ensure_ascii=False)

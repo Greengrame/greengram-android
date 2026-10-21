@@ -88,6 +88,7 @@ public class ProfileMusicCard extends FrameLayout {
     private String lastfmNick;
     private String lastfmUrl;
     private Runnable onCardClick;
+    private Runnable onCardLongClick;
 
     public ProfileMusicCard(Context context, Theme.ResourcesProvider resourcesProvider) {
         super(context);
@@ -124,6 +125,13 @@ public class ProfileMusicCard extends FrameLayout {
             } else if (onCardClick != null) {
                 onCardClick.run();
             }
+        });
+        cardLayout.setOnLongClickListener(v -> {
+            if (onCardLongClick == null) {
+                return false;
+            }
+            onCardLongClick.run();
+            return true;
         });
         ScaleStateListAnimator.apply(cardLayout, 0.035f, 1.5f);
         addView(cardLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -180,6 +188,10 @@ public class ProfileMusicCard extends FrameLayout {
 
     public void setOnCardClickListener(Runnable listener) {
         onCardClick = listener;
+    }
+
+    public void setOnCardLongClickListener(Runnable listener) {
+        onCardLongClick = listener;
     }
 
     public void set(TLRPC.Document document, long emojiDocumentId, long ownerId) {

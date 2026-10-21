@@ -127,6 +127,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
     // Stickers and Emoji
     private int stickersHeaderRow;
     private int disableTrendingRow;
+    private int hideGroupStickerRow;
     private int lockedEmojiAsStickerRow;
     private int unlimitedGroupRow;
     private int unlimitedStickersRow;
@@ -156,7 +157,11 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
     private int deleteChatForBothSidesRow;
     private int hideKeyboardOnScrollRow;
     private int disableGlobalSearchRow;
+    private int searchHashtagChatRow;
+    private int searchHashtagChannelRow;
     private int addCommaRow;
+    private int inlineMathRow;
+    private int inlineMathCurrencyRow;
     private int hideSendAsPeerRow;
     private int tapToSwitchRecordRow;
     private int keepAttachButtonRow;
@@ -172,6 +177,9 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
     private int hideSearchButtonRow;
     private int showResultsBeforeVotingRow;
     private int dateOfForwardedMsgRow;
+    private int showTimeHintRow;
+    private int rememberAllRepliesRow;
+    private int translateInSheetRow;
     private int chatMenuGroupRow;
     private int chatMenuAdminsRow;
     private int chatMenuRecentActionsRow;
@@ -337,6 +345,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
 
         stickersHeaderRow = addRow("stickersHeader");
         disableTrendingRow = addRow("disableTrending", "DisableTrending");
+        hideGroupStickerRow = addRow("hideGroupSticker");
         lockedEmojiAsStickerRow = addRow(NaConfig.INSTANCE.getSendLockedCustomEmojiAsSticker().getKey());
         unlimitedGroupRow = addRow("unlimited", "unlimitedRecentStickers");
         if (unlimitedExpanded) {
@@ -381,7 +390,11 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         deleteChatForBothSidesRow = addRow("deleteChatForBothSides", "DeleteChatForBothSides");
         hideKeyboardOnScrollRow = addRow("hideKeyboardOnScroll");
         disableGlobalSearchRow = addRow("disableGlobalSearch");
+        searchHashtagChatRow = addRow("searchHashtagChat", "SearchHashtagDefaultPageChat");
+        searchHashtagChannelRow = addRow("searchHashtagChannel", "SearchHashtagDefaultPageChannel");
         addCommaRow = addRow("addCommaAfterMention");
+        inlineMathRow = addRow("inlineMathResult");
+        inlineMathCurrencyRow = ChatsConfig.inlineMathResult.Bool() ? addRow("inlineMathCurrency") : -1;
         hideSendAsPeerRow = addRow("hideSendAsPeer");
         tapToSwitchRecordRow = addRow("tapToSwitchRecord", "UseChatAttachEnterMenu");
         keepAttachButtonRow = addRow("keepAttachButton");
@@ -396,6 +409,9 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         hideSearchButtonRow = addRow("hideSearchButton");
         showResultsBeforeVotingRow = addRow("showResultsBeforeVoting");
         dateOfForwardedMsgRow = addRow("dateOfForwardedMsg", "DateOfForwardedMsg");
+        showTimeHintRow = addRow("showTimeHint", "ShowTimeHint");
+        rememberAllRepliesRow = addRow("rememberAllBackMessages", "rememberAllBackMessages");
+        translateInSheetRow = addRow("translateInSheet");
         chatMenuGroupRow = addRow("chatMenu");
         if (chatMenuExpanded) {
             chatMenuAdminsRow = addRow();
@@ -533,7 +549,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
             extendedSettingsGroupRow = addRow("extendedSettings");
             if (extendedSettingsExpanded) {
                 // Бесшовное переключение есть не на всяком железе.
-                if (isSeamlessSwitchingAvailable()) {
+                if (cameraTypeIndex() != CAMERA_TYPE_TELEGRAM && isSeamlessSwitchingAvailable()) {
                     seamlessSwitchingRow = addRow();
                 }
                 extendedFpsRow = addRow();
@@ -774,6 +790,9 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
      * CameraXSession, другим движкам их передать некуда.
      */
     private static int cameraSettingsTotal() {
+        if (ChatsConfig.cameraType() == CAMERA_TYPE_TELEGRAM) {
+            return 2;
+        }
         int total = isSeamlessSwitchingAvailable() ? 3 : 2;
         if (ChatsConfig.cameraType() == CAMERA_TYPE_CAMERA_X) {
             total += 2;  // зеркало и широкий угол
@@ -783,6 +802,9 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
 
     private static int cameraSettingsSelected() {
         int selected = count(ChatsConfig.extendedFramesPerSecond.Bool(), ChatsConfig.cameraStabilization.Bool());
+        if (ChatsConfig.cameraType() == CAMERA_TYPE_TELEGRAM) {
+            return selected;
+        }
         if (isSeamlessSwitchingAvailable() && isSeamlessSwitchingEnabled()) {
             selected++;
         }
@@ -900,8 +922,10 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
 
     private void toggleAllCameraSettings() {
         boolean enable = cameraSettingsSelected() == 0;
-        // При недоступном железе флаг всегда гасится.
-        setSeamlessSwitching(enable && isSeamlessSwitchingAvailable());
+        if (ChatsConfig.cameraType() != CAMERA_TYPE_TELEGRAM) {
+            // При недоступном железе флаг всегда гасится.
+            setSeamlessSwitching(enable && isSeamlessSwitchingAvailable());
+        }
         ChatsConfig.extendedFramesPerSecond.setConfigBool(enable);
         ChatsConfig.cameraStabilization.setConfigBool(enable);
         reloadList();
@@ -1024,6 +1048,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
     private static final int CAMERA_TYPE_SYSTEM = 0;
     private static final int CAMERA_TYPE_CAMERA2 = 1;
     private static final int CAMERA_TYPE_CAMERA_X = 2;
+    private static final int CAMERA_TYPE_TELEGRAM = 3;
     /** Индекс варианта «спрашивать каждый раз» в NaConfig.cameraInVideoMessages. */
     private static final int VIDEO_CAMERA_ASK = 2;
 
@@ -1112,7 +1137,8 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         return new CharSequence[]{
                 getString(R.string.Default),
                 getString(R.string.OEChatsCameraTypeCamera2),
-                getString(R.string.OEChatsCameraTypeCameraX)
+                getString(R.string.OEChatsCameraTypeCameraX),
+                getString(R.string.OEChatsCameraTypeTelegram)
         };
     }
 
@@ -1154,6 +1180,14 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
             item.setConfigInt(index);
             listAdapter.notifyItemChanged(position);
         });
+    }
+
+    private CharSequence[] searchHashtagPageOptions() {
+        return new CharSequence[]{
+                getString(R.string.SearchThisChat),
+                getString(R.string.SearchMyMessages),
+                getString(R.string.SearchPublicPosts),
+        };
     }
 
     private CharSequence[] videoPlayerDecoderOptions() {
@@ -1418,6 +1452,12 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         } else if (position == videoPlayerDecoderRow) {
             showOptions(view, position, videoPlayerDecoderOptions(), NaConfig.INSTANCE.getPlayerDecoder());
             return;
+        } else if (position == searchHashtagChatRow) {
+            showOptions(view, position, searchHashtagPageOptions(), NaConfig.INSTANCE.getSearchHashtagDefaultPageChat());
+            return;
+        } else if (position == searchHashtagChannelRow) {
+            showOptions(view, position, searchHashtagPageOptions(), NaConfig.INSTANCE.getSearchHashtagDefaultPageChannel());
+            return;
         } else if (position == alwaysSendHdRow) {
             toggleHighQualityPhoto(view);
             return;
@@ -1483,7 +1523,17 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         if (view instanceof TextCheckCell) {
             ((TextCheckCell) view).setChecked(value);
         }
-        if (position == hideTimeOnStickersRow && stickerSizeCell != null) {
+        if (position == inlineMathRow) {
+            int wasCurrencyRow = inlineMathCurrencyRow;
+            updateRows();
+            if (listAdapter != null) {
+                if (wasCurrencyRow != -1 && inlineMathCurrencyRow == -1) {
+                    listAdapter.notifyItemRemoved(wasCurrencyRow);
+                } else if (wasCurrencyRow == -1 && inlineMathCurrencyRow != -1) {
+                    listAdapter.notifyItemInserted(inlineMathCurrencyRow);
+                }
+            }
+        } else if (position == hideTimeOnStickersRow && stickerSizeCell != null) {
             stickerSizeCell.invalidate();
         } else if (position == removeMessageTailRow) {
             // Пузырь рисуется закешированным drawable — без сброса эффекта не видно.
@@ -1648,6 +1698,8 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         if (position == hideKeyboardOnScrollRow) return NekoConfig.hideKeyboardOnChatScroll;
         if (position == disableGlobalSearchRow) return NaConfig.INSTANCE.getDisableGlobalSearch();
         if (position == addCommaRow) return OpenExteraConfig.addCommaAfterMention;
+        if (position == inlineMathRow) return ChatsConfig.inlineMathResult;
+        if (position == inlineMathCurrencyRow) return ChatsConfig.inlineMathCurrency;
         if (position == hideSendAsPeerRow) return NekoConfig.hideSendAsChannel;
         if (position == keepAttachButtonRow) return ChatsConfig.keepAttachButton;
         if (position == removeMessageTailRow) return ChatsConfig.removeMessageTail;
@@ -1724,9 +1776,13 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
         if (position == pauseVoiceRow) return ChatsConfig.pauseOnMinimizeVoice;
         if (position == pauseRoundRow) return ChatsConfig.pauseOnMinimizeRound;
         if (position == disableTrendingRow) return NekoConfig.disableTrending;
+        if (position == hideGroupStickerRow) return NekoConfig.hideGroupSticker;
         if (position == lockedEmojiAsStickerRow) return NaConfig.INSTANCE.getSendLockedCustomEmojiAsSticker();
         if (position == deleteChatForBothSidesRow) return NaConfig.INSTANCE.getDeleteChatForBothSides();
         if (position == dateOfForwardedMsgRow) return NaConfig.INSTANCE.getDateOfForwardedMsg();
+        if (position == showTimeHintRow) return NaConfig.INSTANCE.getShowTimeHint();
+        if (position == rememberAllRepliesRow) return NekoConfig.rememberAllBackMessages;
+        if (position == translateInSheetRow) return ChatsConfig.translateInSheet;
         if (position == premiumEmojiStatusRow) return NaConfig.INSTANCE.getPremiumItemEmojiStatus();
         if (position == premiumEmojiInRepliesRow) return NaConfig.INSTANCE.getPremiumItemEmojiInReplies();
         if (position == premiumColorsInRepliesRow) return NaConfig.INSTANCE.getPremiumItemCustomColorInReplies();
@@ -2285,6 +2341,14 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
                 cell.setTextAndCheck(getString(R.string.OEChatsDisableGlobalSearch), NaConfig.INSTANCE.getDisableGlobalSearch().Bool(), true);
             } else if (position == addCommaRow) {
                 cell.setTextAndCheck(getString(R.string.AddCommaAfterMention), OpenExteraConfig.addCommaAfterMention.Bool(), true);
+            } else if (position == inlineMathRow) {
+                cell.setTextAndValueAndCheck(getString(R.string.OEChatsInlineMath),
+                        getString(R.string.OEChatsInlineMathInfo),
+                        ChatsConfig.inlineMathResult.Bool(), true, true);
+            } else if (position == inlineMathCurrencyRow) {
+                cell.setTextAndValueAndCheck(getString(R.string.OEChatsInlineMathCurrency),
+                        getString(R.string.OEChatsInlineMathCurrencyInfo),
+                        ChatsConfig.inlineMathCurrency.Bool(), true, true);
             } else if (position == hideSendAsPeerRow) {
                 cell.setTextAndCheck(getString(R.string.OEChatsHideSendAsPeer), NekoConfig.hideSendAsChannel.Bool(), true);
             } else if (position == tapToSwitchRecordRow) {
@@ -2349,6 +2413,8 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
                         ChatsConfig.unmuteWithVolumeButtons.Bool(), true, true);
             } else if (position == disableTrendingRow) {
                 cell.setTextAndCheck(getString(R.string.DisableTrending), NekoConfig.disableTrending.Bool(), true);
+            } else if (position == hideGroupStickerRow) {
+                cell.setTextAndCheck(getString(R.string.hideGroupSticker), NekoConfig.hideGroupSticker.Bool(), true);
             } else if (position == lockedEmojiAsStickerRow) {
                 cell.setTextAndValueAndCheck(getString(R.string.SendLockedCustomEmojiAsSticker),
                         getString(R.string.SendLockedCustomEmojiAsStickerInfo),
@@ -2357,6 +2423,13 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
                 cell.setTextAndCheck(getString(R.string.DeleteChatForBothSides), NaConfig.INSTANCE.getDeleteChatForBothSides().Bool(), true);
             } else if (position == dateOfForwardedMsgRow) {
                 cell.setTextAndCheck(getString(R.string.DateOfForwardedMsg), NaConfig.INSTANCE.getDateOfForwardedMsg().Bool(), true);
+            } else if (position == showTimeHintRow) {
+                cell.setTextAndCheck(getString(R.string.ShowTimeHint), NaConfig.INSTANCE.getShowTimeHint().Bool(), true);
+            } else if (position == rememberAllRepliesRow) {
+                cell.setTextAndCheck(getString(R.string.rememberAllBackMessages), NekoConfig.rememberAllBackMessages.Bool(), true);
+            } else if (position == translateInSheetRow) {
+                cell.setTextAndValueAndCheck(getString(R.string.OEChatsTranslateInSheet),
+                        getString(R.string.OEChatsTranslateInSheetInfo), ChatsConfig.translateInSheet.Bool(), true, true);
             } else if (position == fixLinkPreviewRow) {
                 cell.setTextAndValueAndCheck(getString(R.string.FixLinkPreview), "x.com → fixupx.com",
                         NaConfig.INSTANCE.getFixLinkPreview().Bool(), false, true);
@@ -2415,6 +2488,14 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
                 CharSequence[] options = videoPlayerDecoderOptions();
                 cell.setTextAndValue(getString(R.string.VideoPlayerDecoder),
                         options[clampIndex(NaConfig.INSTANCE.getPlayerDecoder().Int(), options.length)], true);
+            } else if (position == searchHashtagChatRow) {
+                CharSequence[] options = searchHashtagPageOptions();
+                cell.setTextAndValue(getString(R.string.SearchHashtagDefaultPageChat),
+                        options[clampIndex(NaConfig.INSTANCE.getSearchHashtagDefaultPageChat().Int(), options.length)], true);
+            } else if (position == searchHashtagChannelRow) {
+                CharSequence[] options = searchHashtagPageOptions();
+                cell.setTextAndValue(getString(R.string.SearchHashtagDefaultPageChannel),
+                        options[clampIndex(NaConfig.INSTANCE.getSearchHashtagDefaultPageChannel().Int(), options.length)], true);
             } else if (position == openLinkConfirmationRow) {
                 cell.setTextAndValue(getString(R.string.OEChatsOpenLinkConfirmation),
                         openLinkConfirmationOptions()[openLinkConfirmation()], true);
@@ -2518,6 +2599,7 @@ public class OpenExteraChatsActivity extends BaseNekoSettingsActivity {
                     || position == bottomButtonRow || position == cameraTypeRow
                     || position == videoMessagesCameraRow || position == doubleTapSeekDurationRow
                     || position == videoPlayerDecoderRow
+                    || position == searchHashtagChatRow || position == searchHashtagChannelRow
                     || position == openLinkConfirmationRow || position == transcribeProviderRow
                     || position == cloudflareCredentialsRow || position == geminiApiKeyRow
                     || position == openAiCredentialsRow || position == voskModelsRow;

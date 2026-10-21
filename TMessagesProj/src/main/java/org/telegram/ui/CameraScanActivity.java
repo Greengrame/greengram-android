@@ -1216,6 +1216,9 @@ public class CameraScanActivity extends BaseFragment {
     }
 
     private static PointF[] toPointF(Point[] points, int w, int h) {
+        if (points == null || points.length != 4) {
+            return null;
+        }
         PointF[] out = new PointF[points.length];
         for (int i = 0; i < points.length; ++i) {
             out[i] = new PointF(

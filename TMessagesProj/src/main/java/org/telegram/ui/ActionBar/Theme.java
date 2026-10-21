@@ -7741,7 +7741,7 @@ public class Theme {
                                     }
                                 } else {
                                     Integer monetValue = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                                            ? MonetHelper.getColorOrNull(param)
+                                            ? MonetHelper.getColorOrNull(param, key)
                                             : null;
                                     value = monetValue != null ? monetValue : Utilities.parseInt(param);
                                 }

@@ -159,6 +159,7 @@ where id = 123456789;
 - [Cherrygram](https://github.com/arsLan4k1390/Cherrygram)
 - [Dr4iv3rNope](https://github.com/Dr4iv3rNope/NotSoAndroidAyuGram)
 - [exteraGram](https://github.com/exteraSquad/exteraGram)
+- [Inugram](https://github.com/teidesu/inugram)
 - [Nagram](https://github.com/NextAlone/Nagram)
 - [NagramX](https://github.com/risin42/NagramX)
 - [Nekogram](https://github.com/Nekogram/Nekogram)
