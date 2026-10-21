@@ -6,6 +6,20 @@
         <description>Release notes for LibreTG and LibreTGB.</description>
         <item>
             <libre:lang>en</libre:lang>
+            <title>LibreTG 12.10.12.4</title>
+            <description><![CDATA[Upstream updates, now based on Telegram 13.0.2: a Material 3 music player with synced lyrics and a mini player, search in exteraless settings, an app icon picker with new icons, per-chat exceptions for saving deleted and edited messages, selecting up to 1000 messages at once, a close app item in the main menu, a refresh button for the proxy list, and lots of plugin, notification and crash fixes. Check for updates and the logo in exteraless settings now use LibreTG's own updater.]]></description>
+            <pubDate>Wed, 21 Oct 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1277</guid>
+        </item>
+        <item>
+            <libre:lang>ru</libre:lang>
+            <title>LibreTG 12.10.12.4</title>
+            <description><![CDATA[Обновления из апстрима, теперь на основе Telegram 13.0.2: плеер в стиле Material 3 с синхронным текстом песен и мини-плеером, поиск в настройках exteraless, выбор иконки приложения с новыми иконками, исключения по чатам для сохранения удалённых и изменённых сообщений, выделение до 1000 сообщений сразу, пункт «Закрыть приложение» в главном меню, кнопка обновления списка прокси и много исправлений плагинов, уведомлений и вылетов. «Проверить обновления» и логотип в настройках exteraless теперь используют собственный апдейтер LibreTG.]]></description>
+            <pubDate>Wed, 21 Oct 2026 00:00:00 GMT</pubDate>
+            <guid isPermaLink="false">libretg-1277-ru</guid>
+        </item>
+        <item>
+            <libre:lang>en</libre:lang>
             <title>LibreTG 12.10.12.3</title>
             <description><![CDATA[Update improvements: if you postpone an update, a banner above the chat list reminds you, shows download progress and installs it in one tap. The app checks for updates again after a few hours in the background, keeps an already downloaded update, and shows what's new after updating.]]></description>
             <pubDate>Mon, 28 Sep 2026 00:00:00 GMT</pubDate>
