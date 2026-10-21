@@ -426,6 +426,9 @@ public class ProfileGalleryBlurView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (view == null) {
+            return;
+        }
         draw(canvas, null, view.getMeasuredWidth(), view.getMeasuredHeight(), false, 0f, 1f);
     }
 

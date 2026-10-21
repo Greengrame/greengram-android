@@ -36,9 +36,22 @@ PLUGINS_QUEUE = "PLUGINS_QUEUE"
 _queues = {}
 
 
+_jclass_cache = {}
+
+
 def _jclass(name: str):
+    cls = _jclass_cache.get(name)
+    if cls is not None:
+        return cls
     from java import jclass
-    return jclass(name)
+    cls = jclass(name)
+    try:
+        from extera_utils.plugin_loader import plain_java_class
+        if plain_java_class(name):
+            _jclass_cache[name] = cls
+    except Exception:
+        pass
+    return cls
 
 
 def _log(message):
@@ -73,7 +86,13 @@ def get_hook_account():
 
 def get_selected_account() -> int:
     """The account currently selected in the UI."""
-    return int(_jclass("org.telegram.messenger.UserConfig").selectedAccount)
+    global _user_config_class
+    if _user_config_class is None:
+        _user_config_class = _jclass("org.telegram.messenger.UserConfig")
+    return int(_user_config_class.selectedAccount)
+
+
+_user_config_class = None
 
 
 def _enter_hook_account(account):
@@ -311,8 +330,27 @@ def _plugin_services():
 
 def get_account_instance(account=None):
     """AccountInstance for *account* (default: UI-selected / hook scope rules)."""
-    return _jclass("org.telegram.messenger.AccountInstance").getInstance(
-        _resolve_account(account, "get_account_instance"))
+    return _account_part(_resolve_account(account, "get_account_instance"), None)
+
+
+_account_parts = {}
+
+
+def _account_part(account, getter):
+    key = (account, getter)
+    part = _account_parts.get(key)
+    if part is not None:
+        return part
+    instance = _account_parts.get((account, None))
+    if instance is None:
+        instance = _jclass("org.telegram.messenger.AccountInstance").getInstance(account)
+        if instance is None:
+            return None
+        _account_parts[(account, None)] = instance
+    part = instance if getter is None else getattr(instance, getter)()
+    if part is not None:
+        _account_parts[key] = part
+    return part
 
 
 def get_last_fragment():
@@ -332,57 +370,47 @@ def get_last_fragment():
 
 
 def get_messages_controller(account=None):
-    return get_account_instance(_resolve_account(account, "get_messages_controller")) \
-        .getMessagesController()
+    return _account_part(_resolve_account(account, "get_messages_controller"), "getMessagesController")
 
 
 def get_contacts_controller(account=None):
-    return get_account_instance(_resolve_account(account, "get_contacts_controller")) \
-        .getContactsController()
+    return _account_part(_resolve_account(account, "get_contacts_controller"), "getContactsController")
 
 
 def get_media_data_controller(account=None):
-    return get_account_instance(_resolve_account(account, "get_media_data_controller")) \
-        .getMediaDataController()
+    return _account_part(_resolve_account(account, "get_media_data_controller"), "getMediaDataController")
 
 
 def get_connections_manager(account=None):
-    return get_account_instance(_resolve_account(account, "get_connections_manager")) \
-        .getConnectionsManager()
+    return _account_part(_resolve_account(account, "get_connections_manager"), "getConnectionsManager")
 
 
 def get_location_controller(account=None):
-    return get_account_instance(_resolve_account(account, "get_location_controller")) \
-        .getLocationController()
+    return _account_part(_resolve_account(account, "get_location_controller"), "getLocationController")
 
 
 def get_notifications_controller(account=None):
-    return get_account_instance(_resolve_account(account, "get_notifications_controller")) \
-        .getNotificationsController()
+    return _account_part(_resolve_account(account, "get_notifications_controller"), "getNotificationsController")
 
 
 def get_messages_storage(account=None):
-    return get_account_instance(_resolve_account(account, "get_messages_storage")) \
-        .getMessagesStorage()
+    return _account_part(_resolve_account(account, "get_messages_storage"), "getMessagesStorage")
 
 
 def get_send_messages_helper(account=None):
-    return get_account_instance(_resolve_account(account, "get_send_messages_helper")) \
-        .getSendMessagesHelper()
+    return _account_part(_resolve_account(account, "get_send_messages_helper"), "getSendMessagesHelper")
 
 
 def get_file_loader(account=None):
-    return get_account_instance(_resolve_account(account, "get_file_loader")).getFileLoader()
+    return _account_part(_resolve_account(account, "get_file_loader"), "getFileLoader")
 
 
 def get_secret_chat_helper(account=None):
-    return get_account_instance(_resolve_account(account, "get_secret_chat_helper")) \
-        .getSecretChatHelper()
+    return _account_part(_resolve_account(account, "get_secret_chat_helper"), "getSecretChatHelper")
 
 
 def get_download_controller(account=None):
-    return get_account_instance(_resolve_account(account, "get_download_controller")) \
-        .getDownloadController()
+    return _account_part(_resolve_account(account, "get_download_controller"), "getDownloadController")
 
 
 def get_notifications_settings(account=None):
@@ -391,8 +419,7 @@ def get_notifications_settings(account=None):
 
 
 def get_notification_center(account=None):
-    return get_account_instance(_resolve_account(account, "get_notification_center")) \
-        .getNotificationCenter()
+    return _account_part(_resolve_account(account, "get_notification_center"), "getNotificationCenter")
 
 
 def get_media_controller():
@@ -401,7 +428,7 @@ def get_media_controller():
 
 
 def get_user_config(account=None):
-    return get_account_instance(_resolve_account(account, "get_user_config")).getUserConfig()
+    return _account_part(_resolve_account(account, "get_user_config"), "getUserConfig")
 
 
 # Sending messages

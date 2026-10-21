@@ -19,6 +19,7 @@ import androidx.annotation.NonNull;
 
 import org.telegram.messenger.LocaleController;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.AnimatedTextView;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LoadingDrawable;
 
@@ -125,6 +126,25 @@ public abstract class BasePill extends FrameLayout {
         }
     }
 
+    private boolean shrinkPending;
+
+    protected void shrinkAfterTextChange(AnimatedTextView view) {
+        view.setOnWidthUpdatedListener(() -> {
+            if (shrinkPending || !view.isLaidOut()) {
+                return;
+            }
+            int target = view.getPaddingLeft() + (int) Math.ceil(view.getDrawable().getWidth()) + view.getPaddingRight();
+            if (target < view.getMeasuredWidth()) {
+                shrinkPending = true;
+                view.post(() -> {
+                    shrinkPending = false;
+                    animateSizeChange();
+                    view.requestLayout();
+                });
+            }
+        });
+    }
+
     public void setLoadingTargetView(View view) {
         this.loadingTargetView = view;
     }
@@ -164,7 +184,7 @@ public abstract class BasePill extends FrameLayout {
         if (loadingDrawable == null) {
             return;
         }
-        if (loadingDrawable.getAlpha() > 0 || !loadingDrawable.isDisappearing()) {
+        if (loading || loadingDrawable.isDisappearing()) {
             View target = loadingTargetView != null ? loadingTargetView : this;
             rectF.set(target.getLeft(), target.getTop(), target.getRight(), target.getBottom());
             loadingDrawable.setBounds(rectF);

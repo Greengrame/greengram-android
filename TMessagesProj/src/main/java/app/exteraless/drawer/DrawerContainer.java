@@ -76,8 +76,7 @@ import xyz.nextalone.nagram.NaConfig;
  *   {@code MainTabsActivity} нет конструктора с {@code Bundle} и режима {@code drawer_account_preview},
  *   а {@code DrawerLayoutContainer} не рисует превью поверх шторки. Долгое нажатие на чужой
  *   аккаунт переключает на него, как тап;
- * — наблюдатели {@code pluginMenuItemsUpdated} и {@code proxyPingUpdated}: таких уведомлений
- *   в форке нет.
+ * — наблюдатель {@code pluginMenuItemsUpdated}: такого уведомления в форке нет.
  */
 public class DrawerContainer extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
 
@@ -588,7 +587,7 @@ public class DrawerContainer extends FrameLayout implements NotificationCenter.N
         final ValueAnimator animator = ValueAnimator.ofFloat(getDrawerOffset(), targetOffset);
         standardAnimator = animator;
         animator.setDuration(getAnimationDuration(targetOffset, fast));
-        animator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        animator.setInterpolator(fast ? CubicBezierInterpolator.EASE_OUT_QUINT : CubicBezierInterpolator.Emphasized);
         animator.addUpdateListener(a -> setDrawerOffset((float) a.getAnimatedValue()));
         animator.addListener(new AnimatorListenerAdapter() {
             private boolean canceled;
@@ -630,7 +629,7 @@ public class DrawerContainer extends FrameLayout implements NotificationCenter.N
 
     private long getAnimationDuration(float target, boolean fast) {
         if (!fast) {
-            return 300L;
+            return 400L;
         }
         float distance = getDrawerOffset();
         if (target > distance) {
@@ -1198,6 +1197,7 @@ public class DrawerContainer extends FrameLayout implements NotificationCenter.N
         global.addObserver(this, NotificationCenter.notificationsCountUpdated);
         global.addObserver(this, NotificationCenter.reloadInterface);
         global.addObserver(this, NotificationCenter.proxySettingsChanged);
+        global.addObserver(this, NotificationCenter.proxyPingUpdated);
         notificationsRegistered = true;
     }
 
@@ -1221,6 +1221,7 @@ public class DrawerContainer extends FrameLayout implements NotificationCenter.N
         global.removeObserver(this, NotificationCenter.notificationsCountUpdated);
         global.removeObserver(this, NotificationCenter.reloadInterface);
         global.removeObserver(this, NotificationCenter.proxySettingsChanged);
+        global.removeObserver(this, NotificationCenter.proxyPingUpdated);
         notificationsRegistered = false;
     }
 
@@ -1276,7 +1277,7 @@ public class DrawerContainer extends FrameLayout implements NotificationCenter.N
             if (account == UserConfig.selectedAccount && isOpen) {
                 refreshContents();
             }
-        } else if (id == NotificationCenter.proxySettingsChanged || id == NotificationCenter.didUpdateConnectionState) {
+        } else if (id == NotificationCenter.proxySettingsChanged || id == NotificationCenter.proxyPingUpdated || id == NotificationCenter.didUpdateConnectionState) {
             headerView.updateProxyStatus();
         } else if (id == NotificationCenter.appDidLogout) {
             refreshAccountViews(account, true);

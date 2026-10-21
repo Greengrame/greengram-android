@@ -31,6 +31,7 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.PushListenerController;
+import org.telegram.messenger.GooglePushListenerServiceProvider;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UnifiedPushService;
 import org.telegram.messenger.UserConfig;
@@ -51,12 +52,14 @@ import org.telegram.ui.LaunchActivity;
 import java.util.regex.Pattern;
 
 import app.exteraless.OpenExteraConfig;
+import app.exteraless.chats.ChatsConfig;
 import app.exteraless.general.GeneralConfig;
 import app.exteraless.general.GeneralHelper;
 import app.exteraless.nowplaying.LastFmNowPlaying;
 import app.exteraless.nowplaying.LastFmWebFetcher;
 import app.exteraless.nowplaying.ProfileMusicStamp;
 import tw.nekomimi.nekogram.NekoConfig;
+import tw.nekomimi.nekogram.settings.NekoTranslatorSettingsActivity;
 import tw.nekomimi.nekogram.config.ConfigItem;
 import tw.nekomimi.nekogram.helpers.AppRestartHelper;
 import tw.nekomimi.nekogram.helpers.MessageHelper;
@@ -92,6 +95,11 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
     private int translateButtonRow = -1;
     private int translateChatButtonRow = -1;
 
+    private int translateHeaderRow;
+    private int translatorRow;
+    private int translateInSheetRow;
+    private int translateDividerRow;
+
     private int generalHeaderRow;
     private int disableNumberRoundingRow;
     private int formatTimeWithSecondsRow;
@@ -124,6 +132,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
 
     private int archiveHeaderRow;
     private int sortByUnreadRow;
+    private int unlimitedPinnedRow;
     private int hideArchiveRow;
     private int archiveOnPullRow;
     private int disableUnarchiveSwipeRow;
@@ -141,6 +150,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
     private int notificationBubblesRow;
     private int pushStatusRow;
     private int batteryOptimizationRow;
+    private int glyphRow;
     private int notificationsDividerRow;
 
     /** Момент «пять минут назад» для живого примера в строке Relative Last Seen. */
@@ -161,6 +171,11 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
     protected void updateRows() {
         super.updateRows();
 
+        translateHeaderRow = addRow("translateHeader");
+        translatorRow = addRow("translator");
+        translateInSheetRow = addRow("translateInSheet");
+        translateDividerRow = addRow();
+
         generalHeaderRow = addRow("generalHeader");
         disableNumberRoundingRow = addRow("disableNumberRounding");
         formatTimeWithSecondsRow = addRow("formatTimeWithSeconds");
@@ -171,13 +186,12 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
         speedHeaderRow = addRow("speedHeader");
         downloadSpeedRow = addRow("downloadSpeed");
         uploadBoostRow = addRow("uploadBoost");
-        speedDividerRow = addRow();
-
-        networkHeaderRow = addRow("networkHeader");
+        networkHeaderRow = -1;
         useIPv6Row = addRow("IPv6");
         dnsTypeRow = addRow("dnsType", "DnsType");
         customDoHRow = NekoConfig.dnsType.Int() == NekoConfig.DNS_TYPE_CUSTOM_DOH ? addRow("customDoH", "CustomDoH") : -1;
-        networkDividerRow = addRow();
+        networkDividerRow = -1;
+        speedDividerRow = addRow();
 
         storageHeaderRow = addRow("storageHeader");
         saveToChatSubfolderRow = addRow("saveToChatSubfolder", "SaveToChatSubfolder");
@@ -193,6 +207,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
 
         archiveHeaderRow = addRow("archiveHeader");
         sortByUnreadRow = addRow("sortByUnread", "SortByUnread");
+        unlimitedPinnedRow = addRow("unlimitedPinnedDialogs", "UnlimitedPinnedDialogs");
         hideArchiveRow = addRow("hideArchive");
         // Когда архив скрыт, строка уходит целиком: «открывать архив потягиванием»
         // нечего, если папки архива нет в списке.
@@ -216,6 +231,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
         notificationBubblesRow = addRow("disableNotificationBubbles");
         pushStatusRow = addRow("pushStatus");
         batteryOptimizationRow = addRow("batteryOptimization");
+        glyphRow = Build.MANUFACTURER.equalsIgnoreCase("Nothing") ? addRow("glyph") : -1;
         notificationsDividerRow = addRow();
     }
 
@@ -258,6 +274,16 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
 
     @Override
     protected void onItemClick(View view, int position, float x, float y) {
+        if (position == translatorRow) {
+            presentFragment(new NekoTranslatorSettingsActivity());
+            return;
+        }
+
+        if (position == glyphRow) {
+            presentFragment(new OpenExteraGlyphActivity());
+            return;
+        }
+
         if (position == pushStatusRow) {
             copyPushStatus();
             return;
@@ -361,6 +387,10 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
             item = NaConfig.INSTANCE.getPushServiceTypeInAppDialog();
         } else if (position == notificationBubblesRow) {
             item = NekoConfig.disableNotificationBubbles;
+        } else if (position == translateInSheetRow) {
+            item = ChatsConfig.translateInSheet;
+        } else if (position == unlimitedPinnedRow) {
+            item = NekoConfig.unlimitedPinnedDialogs;
         }
 
         if (item == null) {
@@ -392,7 +422,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
             // Подпись строки — живое превью самой настройки. Меняем только подпись:
             // пересборка ячейки оборвала бы анимацию переключателя, которая уже идёт.
             ((TextCheckCell) view).setValueText(
-                    LocaleController.formatDateOnline(fiveMinutesAgo, new boolean[1]));
+                    LocaleController.formatDateOnline(fiveMinutesAgo, new boolean[1], new boolean[1]));
         }
         if (position == hidePhoneRow) {
             getNotificationCenter().postNotificationName(NotificationCenter.mainUserInfoChanged);
@@ -643,7 +673,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
         }
         TextView logView = new TextView(context);
         logView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
-        logView.setTypeface(Typeface.MONOSPACE);
+        logView.setTypeface(AndroidUtilities.mono());
         logView.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
         logView.setTextIsSelectable(true);
 
@@ -958,6 +988,15 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
         }
     }
 
+    private String gmsVersion() {
+        try {
+            return ApplicationLoader.applicationContext.getPackageManager()
+                    .getPackageInfo("com.google.android.gms", 0).versionName;
+        } catch (Exception e) {
+            return "none";
+        }
+    }
+
     private boolean batteryUnrestricted() {
         try {
             PowerManager pm = (PowerManager) ApplicationLoader.applicationContext.getSystemService(Context.POWER_SERVICE);
@@ -1016,6 +1055,9 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
                 ? SharedConfig.pushString.length() + " chars" : "none").append('\n');
         if (!hasToken) {
             text.append("token status: ").append(SharedConfig.pushStringStatus).append('\n');
+            if (GooglePushListenerServiceProvider.lastError != null) {
+                text.append("token error: ").append(GooglePushListenerServiceProvider.lastError).append('\n');
+            }
         }
         text.append("token fetch ms: ").append(
                 SharedConfig.pushStringGetTimeEnd - SharedConfig.pushStringGetTimeStart).append('\n');
@@ -1030,6 +1072,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
                 : LocaleController.formatDateTime(SharedConfig.pushLastReceivedTime / 1000L, true)).append('\n');
         text.append("play services: ")
                 .append(PushListenerController.getProvider().hasServices()).append('\n');
+        text.append("gms version: ").append(gmsVersion()).append('\n');
         text.append("keep alive: ").append(MessagesController
                 .getNotificationsSettings(UserConfig.selectedAccount)
                 .getBoolean("pushService", false)).append('\n');
@@ -1088,14 +1131,16 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
             switch (holder.getItemViewType()) {
                 case TYPE_HEADER: {
                     HeaderCell cell = (HeaderCell) holder.itemView;
-                    if (position == mapsHeaderRow) {
+                    if (position == translateHeaderRow) {
+                        cell.setText(getString(R.string.OEGeneralTranslateHeader));
+                    } else if (position == mapsHeaderRow) {
                         cell.setText(getString(R.string.OEGeneralMapsHeader));
                     } else if (position == notificationsHeaderRow) {
                         cell.setText(getString(R.string.OEGeneralNotificationsHeader));
                     } else if (position == generalHeaderRow) {
                         cell.setText(getString(R.string.OEGeneralSectionHeader));
                     } else if (position == speedHeaderRow) {
-                        cell.setText(getString(R.string.OEGeneralSpeedHeader));
+                        cell.setText(getString(R.string.OEGeneralNetworkSpeedHeader));
                     } else if (position == storageHeaderRow) {
                         cell.setText(getString(R.string.OEGeneralStorageHeader));
                     } else if (position == profileHeaderRow) {
@@ -1137,11 +1182,18 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
                                 NaConfig.INSTANCE.getZalgoFilter().Bool(), false);
                     } else if (position == uploadBoostRow) {
                         cell.setTextAndCheck(getString(R.string.OEGeneralUploadBoost),
-                                NekoConfig.uploadBoost.Bool(), false);
+                                NekoConfig.uploadBoost.Bool(), true);
+                    } else if (position == translateInSheetRow) {
+                        cell.setTextAndValueAndCheck(getString(R.string.OEChatsTranslateInSheet),
+                                getString(R.string.OEChatsTranslateInSheetInfo), ChatsConfig.translateInSheet.Bool(), true, false);
+                    } else if (position == unlimitedPinnedRow) {
+                        cell.setTextAndValueAndCheck(getString(R.string.UnlimitedPinnedDialogs),
+                                getString(R.string.UnlimitedPinnedDialogsAbout),
+                                NekoConfig.unlimitedPinnedDialogs.Bool(), true, true);
                     } else if (position == relativeLastSeenRow) {
                         // Значение строки — живой пример «был(а) 5 минут назад».
                         cell.setTextAndValueAndCheck(getString(R.string.OEGeneralRelativeLastSeen),
-                                LocaleController.formatDateOnline(fiveMinutesAgo, new boolean[1]),
+                                LocaleController.formatDateOnline(fiveMinutesAgo, new boolean[1], new boolean[1]),
                                 OpenExteraConfig.relativeLastSeen.Bool(), false, true);
                     } else if (position == hidePhoneRow) {
                         cell.setTextAndCheck(getString(R.string.OEGeneralHidePhone),
@@ -1175,14 +1227,18 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
                 }
                 case TYPE_SETTINGS: {
                     TextSettingsCell cell = (TextSettingsCell) holder.itemView;
-                    if (position == pushStatusRow) {
+                    if (position == translatorRow) {
+                        cell.setText(getString(R.string.TranslatorSettings), true);
+                    } else if (position == glyphRow) {
+                        cell.setText(getString(R.string.OEGlyphTitle), false);
+                    } else if (position == pushStatusRow) {
                         cell.setTextAndValue(getString(R.string.OEGeneralPushStatus),
                                 formatPushStatus(), true);
                     } else if (position == batteryOptimizationRow) {
                         cell.setTextAndValue(getString(R.string.OEGeneralBatteryOptimization),
                                 getString(batteryUnrestricted()
                                         ? R.string.OEGeneralBatteryOptimizationOff
-                                        : R.string.OEGeneralBatteryOptimizationOn), false);
+                                        : R.string.OEGeneralBatteryOptimizationOn), glyphRow != -1);
                     } else if (position == savePathRow) {
                         String path = NekoConfig.customSavePath.String();
                         cell.setTextAndValue(getString(R.string.OEGeneralSavePath),
@@ -1259,6 +1315,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
         @Override
         public int getItemViewType(int position) {
             if (position == mapsHeaderRow || position == notificationsHeaderRow
+                    || position == translateHeaderRow
                     || position == generalHeaderRow || position == networkHeaderRow
                     || position == speedHeaderRow
                     || position == storageHeaderRow || position == profileHeaderRow
@@ -1271,7 +1328,7 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
                     || position == storageDividerRow || position == profileDividerRow
                     || position == archiveDividerRow) {
                 return TYPE_INFO_PRIVACY;
-            } else if (position == networkDividerRow) {
+            } else if (position == networkDividerRow || position == translateDividerRow) {
                 return TYPE_SHADOW;
             } else if (position == downloadSpeedRow) {
                 return TYPE_SLIDE;
@@ -1281,7 +1338,8 @@ public class OpenExteraGeneralActivity extends BaseNekoSettingsActivity {
             } else if (position == mapProviderRow || position == mapPreviewRow
                     || position == pushStatusRow || position == batteryOptimizationRow
                     || position == savePathRow
-                    || position == showIdAndDcRow || position == lastfmRow) {
+                    || position == showIdAndDcRow || position == lastfmRow
+                    || position == translatorRow || position == glyphRow) {
                 return TYPE_SETTINGS;
             }
             return TYPE_CHECK;

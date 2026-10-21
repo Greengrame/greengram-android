@@ -91,6 +91,7 @@ import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.PremiumPreviewFragment;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
 import org.telegram.ui.Stories.StoriesStorage;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -112,7 +113,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import tw.nekomimi.nekogram.NekoConfig;
+import tw.nekomimi.nekogram.filters.AyuFilter;
 import tw.nekomimi.nekogram.helpers.EntitiesHelper;
+import tw.nekomimi.nekogram.helpers.MessageHelper;
 import xyz.nextalone.nagram.NaConfig;
 
 import app.exteraless.chats.LinkedCustomEmoji;
@@ -931,6 +934,70 @@ public class MediaDataController extends BaseController {
 
     public ArrayList<TLRPC.Document> getRecentStickersNoCopy(int type) {
         return recentStickers[type];
+    }
+
+    public void importFaveStickers(ArrayList<TLRPC.Document> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return;
+        }
+        getMessagesStorage().getStorageQueue().postRunnable(() -> {
+            final ArrayList<TLRPC.Document> added = new ArrayList<>();
+            SQLiteDatabase database = getMessagesStorage().getDatabase();
+            try {
+                HashSet<String> known = new HashSet<>();
+                int date = Integer.MAX_VALUE;
+                SQLiteCursor cursor = database.queryFinalized("SELECT id, date FROM web_recent_v3 WHERE type = 5");
+                while (cursor.next()) {
+                    known.add(cursor.stringValue(0));
+                    date = Math.min(date, cursor.intValue(1));
+                }
+                cursor.dispose();
+                date = date == Integer.MAX_VALUE ? documents.size() : date - 1;
+                database.beginTransaction();
+                SQLitePreparedStatement state = database.executeFast("REPLACE INTO web_recent_v3 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                for (TLRPC.Document document : documents) {
+                    if (!(document instanceof TLRPC.TL_document) || !known.add("" + document.id)) {
+                        continue;
+                    }
+                    state.requery();
+                    state.bindString(1, "" + document.id);
+                    state.bindInteger(2, 5);
+                    state.bindString(3, "");
+                    state.bindString(4, "");
+                    state.bindString(5, "");
+                    state.bindInteger(6, 0);
+                    state.bindInteger(7, 0);
+                    state.bindInteger(8, 0);
+                    state.bindInteger(9, date--);
+                    NativeByteBuffer data = new NativeByteBuffer(document.getObjectSize());
+                    document.serializeToStream(data);
+                    state.bindByteBuffer(10, data);
+                    state.step();
+                    data.reuse();
+                    added.add(document);
+                }
+                state.dispose();
+                database.commitTransaction();
+            } catch (Exception e) {
+                FileLog.e(e);
+                database.commitTransaction();
+            }
+            if (added.isEmpty()) {
+                return;
+            }
+            AndroidUtilities.runOnUIThread(() -> {
+                HashSet<Long> present = new HashSet<>();
+                for (TLRPC.Document document : recentStickers[TYPE_FAVE]) {
+                    present.add(document.id);
+                }
+                for (TLRPC.Document document : added) {
+                    if (present.add(document.id)) {
+                        recentStickers[TYPE_FAVE].add(document);
+                    }
+                }
+                getNotificationCenter().postNotificationName(NotificationCenter.recentDocumentsDidLoad, false, TYPE_FAVE);
+            });
+        });
     }
 
     public boolean isStickerInFavorites(TLRPC.Document document) {
@@ -3754,6 +3821,10 @@ public class MediaDataController extends BaseController {
     private boolean loadingMoreSearchMessages;
     private boolean loadingSearchLocal;
     private boolean loadedPredirectedSearchLocal;
+    private final int[] searchHiddenCount = new int[]{0, 0};
+    private final int[] searchRawOffsetId = new int[]{0, 0};
+    private int searchNextOffsetId;
+    private int searchSkippedPages;
 
     public void removeMessageFromResults(int id) {
         for (int i = 0; i < searchResultMessages.size(); ++i) {
@@ -3919,6 +3990,8 @@ public class MediaDataController extends BaseController {
 
     public void searchMessagesInChat(String query, long dialogId, long mergeDialogId, int guid, int direction, long replyMessageId, boolean internal, TLRPC.User user, TLRPC.Chat chat, boolean jumpToMessage, ReactionsLayoutInBubble.VisibleReaction reaction, TLRPC.MessagesFilter filter) {
         int max_id = 0;
+        int nextOffsetId = searchNextOffsetId;
+        searchNextOffsetId = 0;
         long queryWithDialog = dialogId;
         boolean firstQuery = !internal;
         if (reqId != 0) {
@@ -3952,10 +4025,12 @@ public class MediaDataController extends BaseController {
                     query = lastSearchQuery;
                     MessageObject messageObject = searchResultMessages.get(searchResultMessages.size() - 1);
                     if (messageObject.getDialogId() == dialogId && !messagesSearchEndReached[0]) {
-                        max_id = messageObject.getId();
+                        max_id = searchRawOffsetId[0] != 0 ? searchRawOffsetId[0] : messageObject.getId();
                         queryWithDialog = dialogId;
                     } else {
-                        if (messageObject.getDialogId() == mergeDialogId) {
+                        if (searchRawOffsetId[1] != 0) {
+                            max_id = searchRawOffsetId[1];
+                        } else if (messageObject.getDialogId() == mergeDialogId) {
                             max_id = messageObject.getId();
                         }
                         queryWithDialog = mergeDialogId;
@@ -3982,6 +4057,9 @@ public class MediaDataController extends BaseController {
         } else if (firstQuery) {
             messagesSearchEndReached[0] = messagesSearchEndReached[1] = false;
             messagesSearchCount[0] = messagesSearchCount[1] = 0;
+            searchHiddenCount[0] = searchHiddenCount[1] = 0;
+            searchRawOffsetId[0] = searchRawOffsetId[1] = 0;
+            searchSkippedPages = 0;
             searchResultMessages.clear();
             searchLocalResultMessages.clear();
             searchServerResultMessagesMap[0].clear();
@@ -4061,7 +4139,7 @@ public class MediaDataController extends BaseController {
         lastReaction = reaction;
         req.limit = 21;
         req.q = query != null ? query : "";
-        req.offset_id = max_id;
+        req.offset_id = max_id != 0 ? max_id : nextOffsetId;
         if (user != null) {
             req.from_id = MessagesController.getInputPeer(user);
             req.flags |= 1;
@@ -4154,19 +4232,38 @@ public class MediaDataController extends BaseController {
                                 searchServerResultMessagesMap[0].clear();
                                 searchServerResultMessagesMap[1].clear();
                                 messagesSearchCount[0] = 0;
+                                searchHiddenCount[0] = 0;
+                                searchRawOffsetId[0] = 0;
                                 getNotificationCenter().postNotificationName(NotificationCenter.chatSearchResultsLoading, guid);
                             }
+                            int index = queryWithDialogFinal == dialogId ? 0 : 1;
+                            boolean hideSenders = user == null && chat == null && AyuFilter.shouldHideSenders() && ChatObject.isMegagroup(getMessagesController().getChat(-dialogId));
                             boolean added = false;
+                            int hidden = 0;
                             int N = Math.min(res.messages.size(), req.limit - 1);
                             for (int a = 0; a < N; a++) {
-                                added = true;
                                 MessageObject messageObject = messageObjects.get(a);
+                                if (hideSenders) {
+                                    searchRawOffsetId[index] = messageObject.getId();
+                                    long fromId = messageObject.getFromChatId();
+                                    if (MessageHelper.getInstance(currentAccount).isBlockedUser(fromId) || AyuFilter.isBlockedChannel(fromId)) {
+                                        hidden++;
+                                        continue;
+                                    }
+                                }
+                                added = true;
                                 searchServerResultMessages.add(messageObject);
-                                searchServerResultMessagesMap[queryWithDialogFinal == dialogId ? 0 : 1].put(messageObject.getId(), messageObject);
+                                searchServerResultMessagesMap[index].put(messageObject.getId(), messageObject);
                             }
+                            searchHiddenCount[index] += hidden;
                             updateSearchResults();
-                            messagesSearchEndReached[queryWithDialogFinal == dialogId ? 0 : 1] = res.messages.size() < req.limit;
-                            messagesSearchCount[queryWithDialogFinal == dialogId ? 0 : 1] = res instanceof TLRPC.TL_messages_messagesSlice || res instanceof TLRPC.TL_messages_channelMessages ? res.count : res.messages.size();
+                            messagesSearchEndReached[index] = res.messages.size() < req.limit;
+                            messagesSearchCount[index] = (res instanceof TLRPC.TL_messages_messagesSlice || res instanceof TLRPC.TL_messages_channelMessages ? res.count : res.messages.size()) - searchHiddenCount[index];
+                            if (!added && hidden > 0 && !messagesSearchEndReached[index] && searchSkippedPages++ < 10) {
+                                searchNextOffsetId = searchRawOffsetId[index];
+                                searchMessagesInChat(lastSearchQuery, dialogId, mergeDialogId, guid, 0, replyMessageId, true, user, chat, jumpToMessage, lastReaction, lastSearchFilter);
+                                return;
+                            }
                             if (searchServerResultMessages.isEmpty()) {
                                 getNotificationCenter().postNotificationName(NotificationCenter.chatSearchResultsAvailable, guid, 0, getMask(), (long) 0, 0, 0, jumpToMessage);
                             } else {
@@ -7110,6 +7207,10 @@ public class MediaDataController extends BaseController {
     }
 
     public static final int MAX_STYLE_RUNS_COUNT = 1000;
+    private static final int MAX_STYLE_ENTITIES_COUNT = 1000;
+    private static final int MAX_LEGACY_STYLE_ENTITIES_COUNT = 100;
+    private static final int MAX_LEGACY_STYLE_RUNS_COUNT = 100;
+    private static final int MAX_LEGACY_STYLE_PROCESSING_STEPS = 10_000;
     public static final int MAX_LINKS_COUNT = 250;
 
     public static void addAnimatedEmojiSpans(ArrayList<TLRPC.MessageEntity> entities, CharSequence messageText, Paint.FontMetricsInt fontMetricsInt) {
@@ -7145,8 +7246,26 @@ public class MediaDataController extends BaseController {
     }
 
     public static ArrayList<TextStyleSpan.TextStyleRun> getTextStyleRuns(ArrayList<TLRPC.MessageEntity> entities, CharSequence text, int allowedFlags) {
+        if (entities != null && entities.size() > MAX_LEGACY_STYLE_ENTITIES_COUNT) {
+            return getTextStyleRunsSafe(entities, text, allowedFlags);
+        }
+        ArrayList<TextStyleSpan.TextStyleRun> runs = getTextStyleRunsLegacy(entities, text, allowedFlags);
+        return runs != null ? runs : getTextStyleRunsSafe(entities, text, allowedFlags);
+    }
+
+    private static ArrayList<TextStyleSpan.TextStyleRun> getTextStyleRunsSafe(ArrayList<TLRPC.MessageEntity> entities, CharSequence text, int allowedFlags) {
         ArrayList<TextStyleSpan.TextStyleRun> runs = new ArrayList<>();
-        ArrayList<TLRPC.MessageEntity> entitiesCopy = new ArrayList<>(entities);
+        if (entities == null || entities.isEmpty() || text == null || text.length() == 0 || entities.size() > MAX_STYLE_ENTITIES_COUNT) {
+            return runs;
+        }
+
+        ArrayList<TLRPC.MessageEntity> entitiesCopy = new ArrayList<>(entities.size());
+        for (int i = 0, size = entities.size(); i < size; i++) {
+            TLRPC.MessageEntity entity = entities.get(i);
+            if (entity != null) {
+                entitiesCopy.add(entity);
+            }
+        }
 
         Collections.sort(entitiesCopy, (o1, o2) -> {
             if (o1.offset > o2.offset) {
@@ -7156,21 +7275,143 @@ public class MediaDataController extends BaseController {
             }
             return 0;
         });
+        ArrayList<TextStyleSpan.TextStyleRun> entityRuns = new ArrayList<>(entitiesCopy.size());
+        int[] boundaries = new int[entitiesCopy.size() * 2];
+        int boundariesCount = 0;
         for (int a = 0, N = entitiesCopy.size(); a < N; a++) {
             TLRPC.MessageEntity entity = entitiesCopy.get(a);
-            if (entity == null || entity.length <= 0 || entity.offset < 0 || entity.offset >= text.length()) {
+            if (entity.length <= 0 || entity.offset < 0 || entity.offset >= text.length()) {
                 continue;
-            } else if (entity.offset + entity.length > text.length()) {
-                entity.length = text.length() - entity.offset;
             }
+
+            // Clamp without adding offset + length, which could overflow, and without
+            // modifying the entity received from the network or owned by the caller.
+            final int entityStart = entity.offset;
+            final int entityEnd = entityStart + Math.min(entity.length, text.length() - entityStart);
 
             if (entity instanceof TLRPC.TL_messageEntityCustomEmoji) {
                 continue;
             }
 
             TextStyleSpan.TextStyleRun newRun = new TextStyleSpan.TextStyleRun();
+            newRun.start = entityStart;
+            newRun.end = entityEnd;
+            if (entity instanceof TLRPC.TL_messageEntitySpoiler) {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_SPOILER;
+            } else if (entity instanceof TLRPC.TL_messageEntityStrike) {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_STRIKE;
+            } else if (entity instanceof TLRPC.TL_messageEntityUnderline) {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_UNDERLINE;
+            } else if (entity instanceof TLRPC.TL_messageEntityBold) {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_BOLD;
+            } else if (entity instanceof TLRPC.TL_messageEntityItalic) {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_ITALIC;
+            } else if (entity instanceof TLRPC.TL_messageEntityCode || entity instanceof TLRPC.TL_messageEntityPre) {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_MONO;
+            } else if (entity instanceof TLRPC.TL_messageEntityMentionName) {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_MENTION;
+                newRun.urlEntity = entity;
+            } else if (entity instanceof TLRPC.TL_inputMessageEntityMentionName) {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_MENTION;
+                newRun.urlEntity = entity;
+            } else {
+                newRun.flags = TextStyleSpan.FLAG_STYLE_URL;
+                newRun.urlEntity = entity;
+            }
+            if (entity instanceof TLRPC.TL_messageEntityTextUrl) {
+                newRun.flags |= TextStyleSpan.FLAG_STYLE_TEXT_URL;
+            }
+
+            newRun.flags &= allowedFlags;
+            entityRuns.add(newRun);
+            boundaries[boundariesCount++] = entityStart;
+            boundaries[boundariesCount++] = entityEnd;
+        }
+
+        if (boundariesCount == 0) {
+            return runs;
+        }
+
+        Arrays.sort(boundaries, 0, boundariesCount);
+        for (int boundaryIndex = 0; boundaryIndex < boundariesCount;) {
+            final int segmentStart = boundaries[boundaryIndex];
+            while (boundaryIndex < boundariesCount && boundaries[boundaryIndex] == segmentStart) {
+                boundaryIndex++;
+            }
+            if (boundaryIndex >= boundariesCount) {
+                break;
+            }
+            final int segmentEnd = boundaries[boundaryIndex];
+
+            TextStyleSpan.TextStyleRun segment = null;
+            int selectedUrlStart = Integer.MIN_VALUE;
+            for (int i = 0, size = entityRuns.size(); i < size; i++) {
+                TextStyleSpan.TextStyleRun entityRun = entityRuns.get(i);
+                if (entityRun.start > segmentStart || entityRun.end < segmentEnd) {
+                    continue;
+                }
+                if (segment == null) {
+                    segment = new TextStyleSpan.TextStyleRun();
+                    segment.start = segmentStart;
+                    segment.end = segmentEnd;
+                }
+                segment.flags |= entityRun.flags;
+
+                // The old splitting algorithm gives URL ownership to the
+                // innermost entity.  For equal starts, stable entity order wins.
+                if (entityRun.urlEntity != null &&
+                        (segment.urlEntity == null || entityRun.start > selectedUrlStart)) {
+                    segment.urlEntity = entityRun.urlEntity;
+                    selectedUrlStart = entityRun.start;
+                }
+            }
+
+            if (segment == null) {
+                continue;
+            }
+            if (!runs.isEmpty()) {
+                TextStyleSpan.TextStyleRun previous = runs.get(runs.size() - 1);
+                if (previous.end == segment.start && previous.flags == segment.flags &&
+                        previous.urlEntity == segment.urlEntity) {
+                    previous.end = segment.end;
+                    continue;
+                }
+            }
+            if (runs.size() >= MAX_STYLE_RUNS_COUNT) {
+                runs.clear();
+                return runs;
+            }
+            runs.add(segment);
+        }
+        return runs;
+    }
+
+    private static ArrayList<TextStyleSpan.TextStyleRun> getTextStyleRunsLegacy(ArrayList<TLRPC.MessageEntity> entities, CharSequence text, int allowedFlags) {
+        if (entities == null || entities.isEmpty() || text == null || text.length() == 0 || entities.size() > MAX_STYLE_ENTITIES_COUNT) {
+            return new ArrayList<>();
+        }
+
+        ArrayList<TLRPC.MessageEntity> entitiesCopy = new ArrayList<>(entities.size());
+        for (int i = 0, size = entities.size(); i < size; i++) {
+            TLRPC.MessageEntity entity = entities.get(i);
+            if (entity != null) {
+                entitiesCopy.add(entity);
+            }
+        }
+        Collections.sort(entitiesCopy, (o1, o2) -> Integer.compare(o1.offset, o2.offset));
+
+        ArrayList<TextStyleSpan.TextStyleRun> runs = new ArrayList<>();
+        int processingSteps = 0;
+        for (int a = 0, count = entitiesCopy.size(); a < count; a++) {
+            TLRPC.MessageEntity entity = entitiesCopy.get(a);
+            if (entity.length <= 0 || entity.offset < 0 || entity.offset >= text.length() ||
+                    entity instanceof TLRPC.TL_messageEntityCustomEmoji) {
+                continue;
+            }
+
+            TextStyleSpan.TextStyleRun newRun = new TextStyleSpan.TextStyleRun();
             newRun.start = entity.offset;
-            newRun.end = newRun.start + entity.length;
+            newRun.end = newRun.start + Math.min(entity.length, text.length() - newRun.start);
             TLRPC.MessageEntity urlEntity = null;
             if (entity instanceof TLRPC.TL_messageEntitySpoiler) {
                 newRun.flags = TextStyleSpan.FLAG_STYLE_SPOILER;
@@ -7200,7 +7441,10 @@ public class MediaDataController extends BaseController {
 
             newRun.flags &= allowedFlags;
 
-            for (int b = 0, N2 = runs.size(); b < N2; b++) {
+            for (int b = 0, runsCount = runs.size(); b < runsCount; b++) {
+                if (++processingSteps > MAX_LEGACY_STYLE_PROCESSING_STEPS) {
+                    return null;
+                }
                 TextStyleSpan.TextStyleRun run = runs.get(b);
 
                 if (newRun.start > run.start) {
@@ -7209,24 +7453,27 @@ public class MediaDataController extends BaseController {
                     }
 
                     if (newRun.end < run.end) {
+                        if (runs.size() > MAX_LEGACY_STYLE_RUNS_COUNT - 2) {
+                            return null;
+                        }
                         TextStyleSpan.TextStyleRun r = new TextStyleSpan.TextStyleRun(newRun);
                         r.merge(run);
-                        b++;
-                        N2++;
-                        runs.add(b, r);
+                        runs.add(++b, r);
+                        runsCount++;
 
                         r = new TextStyleSpan.TextStyleRun(run);
                         r.start = newRun.end;
-                        b++;
-                        N2++;
-                        runs.add(b, r);
+                        runs.add(++b, r);
+                        runsCount++;
                     } else {
+                        if (runs.size() >= MAX_LEGACY_STYLE_RUNS_COUNT) {
+                            return null;
+                        }
                         TextStyleSpan.TextStyleRun r = new TextStyleSpan.TextStyleRun(newRun);
                         r.merge(run);
                         r.end = run.end;
-                        b++;
-                        N2++;
-                        runs.add(b, r);
+                        runs.add(++b, r);
+                        runsCount++;
                     }
 
                     int temp = newRun.start;
@@ -7240,28 +7487,40 @@ public class MediaDataController extends BaseController {
                     if (newRun.end == run.end) {
                         run.merge(newRun);
                     } else if (newRun.end < run.end) {
+                        if (runs.size() >= MAX_LEGACY_STYLE_RUNS_COUNT) {
+                            return null;
+                        }
                         TextStyleSpan.TextStyleRun r = new TextStyleSpan.TextStyleRun(run);
                         r.merge(newRun);
                         r.end = newRun.end;
-                        b++;
-                        N2++;
-                        runs.add(b, r);
-
+                        runs.add(++b, r);
+                        runsCount++;
                         run.start = newRun.end;
                     } else {
+                        if (runs.size() >= MAX_LEGACY_STYLE_RUNS_COUNT) {
+                            return null;
+                        }
                         TextStyleSpan.TextStyleRun r = new TextStyleSpan.TextStyleRun(newRun);
                         r.start = run.end;
-                        b++;
-                        N2++;
-                        runs.add(b, r);
-
+                        runs.add(++b, r);
+                        runsCount++;
                         run.merge(newRun);
                     }
                     newRun.end = temp;
                 }
             }
             if (newRun.start < newRun.end) {
+                if (runs.size() >= MAX_LEGACY_STYLE_RUNS_COUNT) {
+                    return null;
+                }
                 runs.add(newRun);
+            }
+        }
+
+        for (int i = 0, size = runs.size(); i < size; i++) {
+            TextStyleSpan.TextStyleRun run = runs.get(i);
+            if (run.start < 0 || run.start >= run.end || run.end > text.length()) {
+                return null;
             }
         }
         return runs;

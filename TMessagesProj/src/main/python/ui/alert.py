@@ -185,13 +185,13 @@ class AlertDialogBuilder:
         _post(lambda: getattr(self._builder, method_name)(str(text), proxy))
         return self
 
-    def set_positive_button(self, text, listener):
+    def set_positive_button(self, text, listener=None):
         return self._set_button("setPositiveButton", text, listener)
 
-    def set_negative_button(self, text, listener):
+    def set_negative_button(self, text, listener=None):
         return self._set_button("setNegativeButton", text, listener)
 
-    def set_neutral_button(self, text, listener):
+    def set_neutral_button(self, text, listener=None):
         return self._set_button("setNeutralButton", text, listener)
 
     def make_button_red(self, which):

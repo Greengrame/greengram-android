@@ -125,6 +125,12 @@ public class AyuMessagesController {
     }
 
     private void onMessageEditedInner(AyuSavePreferences prefs, TLRPC.Message newMessage, boolean force) {
+        if (!AyuSavePreferences.saveEditedMessageFor(prefs.getDialogId(), prefs.getFromUserId())) {
+            return;
+        }
+        if (!AyuSavePreferences.saveInDialogFolder(prefs.getAccountId(), prefs.getDialogId())) {
+            return;
+        }
         var oldMessage = prefs.getMessage();
 
         boolean sameMedia = isSameMedia(newMessage, force, oldMessage);

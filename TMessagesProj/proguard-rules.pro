@@ -38,6 +38,10 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
+-keep class org.telegram.utils.code.highlight.PrismaHighlighter {
+    private static native <methods>;
+}
+
 # https://developers.google.com/ml-kit/known-issues#android_issues
 -keep class com.google.mlkit.nl.languageid.internal.ThickLanguageIdentifier { *; }
 
@@ -215,6 +219,7 @@
 -keepclassmembers class org.telegram.tgnet.** { *; }
 -keepclassmembers class org.telegram.messenger.MessageObject { *; }
 -keepclassmembers class org.telegram.messenger.SendMessagesHelper { *; }
+-keepclassmembers class org.telegram.messenger.BuildVars { *; }
 
 -keep class org.vosk.** { *; }
 -keep class com.sun.jna.** { *; }
@@ -222,3 +227,8 @@
 -keep class * extends com.sun.jna.Structure { *; }
 -dontwarn java.awt.**
 -dontwarn com.sun.jna.**
+
+-keep class org.telegram.ui.Wallet.WalletPluginFreeze {
+    static boolean frozen;
+    static int bridgeState();
+}

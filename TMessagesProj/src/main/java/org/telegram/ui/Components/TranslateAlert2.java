@@ -93,6 +93,7 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
     private TLRPC.InputPeer reqPeer;
     private int reqMessageId;
     private boolean reqSum;
+    private Runnable aiReplacementCancel;
     private TL_iv.RichMessage reqRichMessage;
     private RichMessageLayout.PreviewView richLoadingPreviewView;
     private RichMessageLayout.PreviewView richPreviewView;
@@ -121,6 +122,7 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
     private Utilities.CallbackReturn<URLSpan, Boolean> onLinkPress;
     private boolean firstTranslation = true;
     private final boolean nekoProviders = app.exteraless.chats.ChatsConfig.translateInSheet.Bool();
+    private int sheetProvider = tw.nekomimi.nekogram.NekoConfig.translationProvider.Int();
 
     public TranslateAlert2(
         Context context,
@@ -314,9 +316,13 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
             ConnectionsManager.getInstance(currentAccount).cancelRequest(reqId, true);
             reqId = null;
         }
+        if (aiReplacementCancel != null) {
+            aiReplacementCancel.run();
+            aiReplacementCancel = null;
+        }
 
         if (nekoProviders && reqRichMessage == null && !reqSum
-                && tw.nekomimi.nekogram.NekoConfig.translationProvider.Int() != tw.nekomimi.nekogram.translate.Translator.providerTelegram) {
+                && sheetProvider != tw.nekomimi.nekogram.translate.Translator.providerTelegram) {
             translateWithProvider();
             return;
         }
@@ -381,7 +387,7 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
             req.peer = reqPeer;
             req.id = reqMessageId;
             req.to_lang = normalizeLanguage(lang);
-            reqId = ConnectionsManager.getInstance(currentAccount).sendRequestTyped(req, AndroidUtilities::runOnUIThread, (res, err) -> {
+            final Utilities.Callback2<TLRPC.TL_textWithEntities, TLRPC.TL_error> onResult = (res, err) -> {
                 reqId = null;
                 if (err != null && "TRANSLATIONS_DISABLED_ALT".equalsIgnoreCase(err.text)) {
                     translateAlt();
@@ -401,7 +407,25 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
                     headerView.toLanguageTextView.setText(languageName(toLanguage = prevToLanguage));
                     adapter.updateMainView(textViewContainer);
                 }
-            });
+            };
+            if (app.exteraless.ai.TelegramAiReplacement.replacesSummaries(currentAccount)) {
+                aiReplacementCancel = app.exteraless.ai.TelegramAiReplacement.translate(textWithEntities.text, lang, res -> {
+                    aiReplacementCancel = null;
+                    onResult.run(res, null);
+                }, (code, message) -> {
+                    aiReplacementCancel = null;
+                    if (firstTranslation) {
+                        dismiss();
+                        com.exteragram.messenger.ai.AiController.showErrorBulletin(org.telegram.ui.LaunchActivity.getSafeLastFragment(), code);
+                    } else {
+                        com.exteragram.messenger.ai.AiController.showErrorBulletin((FrameLayout) containerView, resourcesProvider, code);
+                        headerView.toLanguageTextView.setText(languageName(toLanguage = prevToLanguage));
+                        adapter.updateMainView(textViewContainer);
+                    }
+                });
+            } else {
+                reqId = ConnectionsManager.getInstance(currentAccount).sendRequestTyped(req, AndroidUtilities::runOnUIThread, onResult);
+            }
             return;
         }
 
@@ -494,10 +518,13 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
     }
 
     private void onProviderSelected(int provider) {
-        if (tw.nekomimi.nekogram.NekoConfig.translationProvider.Int() == provider) {
+        if (sheetProvider == provider) {
             return;
         }
-        tw.nekomimi.nekogram.NekoConfig.translationProvider.setConfigInt(provider);
+        sheetProvider = provider;
+        if (provider != tw.nekomimi.nekogram.translate.Translator.providerTelegram || org.telegram.messenger.UserConfig.getInstance(currentAccount).isPremium()) {
+            tw.nekomimi.nekogram.NekoConfig.translationProvider.setConfigInt(provider);
+        }
         headerView.titleTextView.setText(tw.nekomimi.nekogram.settings.NekoTranslatorSettingsActivity.getProviderName(provider));
         adapter.updateMainView(reqRichMessage != null ? richLoadingPreviewView : loadingTextView);
         translate();
@@ -1074,6 +1101,10 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
             ConnectionsManager.getInstance(currentAccount).cancelRequest(reqId, true);
             reqId = null;
         }
+        if (aiReplacementCancel != null) {
+            aiReplacementCancel.run();
+            aiReplacementCancel = null;
+        }
         super.dismissInternal();
     }
 
@@ -1281,7 +1312,7 @@ public class TranslateAlert2 extends BottomSheet implements NotificationCenter.N
             titleTextView.setPivotX(0);
             titleTextView.setPivotY(0);
             if (nekoProviders) {
-                titleTextView.setText(tw.nekomimi.nekogram.settings.NekoTranslatorSettingsActivity.getProviderName(tw.nekomimi.nekogram.NekoConfig.translationProvider.Int()));
+                titleTextView.setText(tw.nekomimi.nekogram.settings.NekoTranslatorSettingsActivity.getProviderName(sheetProvider));
                 titleTextView.setSingleLine(true);
                 titleTextView.setEllipsize(TextUtils.TruncateAt.END);
                 Drawable arrow = ContextCompat.getDrawable(context, R.drawable.ic_arrow_drop_down);

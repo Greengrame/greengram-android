@@ -58,6 +58,7 @@ public class ProxyPill extends BasePill implements NotificationCenter.Notificati
         textView.setIncludeFontPadding(false);
         textView.setTypeface(AndroidUtilities.bold());
         textView.adaptWidth = true;
+        shrinkAfterTextChange(textView);
         layout.addView(textView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL));
 
         setLoadingTargetView(layout);
@@ -82,6 +83,7 @@ public class ProxyPill extends BasePill implements NotificationCenter.Notificati
         onUpdateData(true);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.proxySettingsChanged);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.proxyCheckDone);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.proxyPingUpdated);
         lastAccount = UserConfig.selectedAccount;
         NotificationCenter.getInstance(lastAccount).addObserver(this, NotificationCenter.didUpdateConnectionState);
     }
@@ -91,6 +93,7 @@ public class ProxyPill extends BasePill implements NotificationCenter.Notificati
         super.onDetachedFromWindow();
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.proxySettingsChanged);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.proxyCheckDone);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.proxyPingUpdated);
         NotificationCenter.getInstance(lastAccount).removeObserver(this, NotificationCenter.didUpdateConnectionState);
     }
 
@@ -98,6 +101,7 @@ public class ProxyPill extends BasePill implements NotificationCenter.Notificati
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.proxySettingsChanged
                 || id == NotificationCenter.proxyCheckDone
+                || id == NotificationCenter.proxyPingUpdated
                 || id == NotificationCenter.didUpdateConnectionState) {
             onUpdateData(true);
         }

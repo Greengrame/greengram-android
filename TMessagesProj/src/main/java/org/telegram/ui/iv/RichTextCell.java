@@ -31,7 +31,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.CodeHighlighting;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
@@ -888,7 +888,7 @@ public class RichTextCell extends FrameLayout implements Theme.Colorable, TextSe
             editText.setSoftEnterNewline(false);
             editText.setGravity(Gravity.TOP | Gravity.START);
             editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, baseSize - 1);
-            editText.setTypeface(Typeface.MONOSPACE);
+            editText.setTypeface(AndroidUtilities.mono());
             editText.setLineSpacing(editText.getPaint().getFontSpacing() * .30f, 1f);
             editText.setAccentHint(false);
         } else if (block instanceof TL_iv.pageBlockBlockquote) {

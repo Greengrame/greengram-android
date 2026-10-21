@@ -107,7 +107,7 @@ import org.telegram.messenger.BotForumHelper;
 import org.telegram.messenger.BotInlineKeyboard;
 import org.telegram.messenger.ChatMessageSharedResources;
 import org.telegram.messenger.ChatObject;
-import org.telegram.messenger.CodeHighlighting;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.DocumentObject;
@@ -157,6 +157,7 @@ import org.telegram.ui.ActionBar.MessageDrawable;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.AvatarSpan;
 import org.telegram.ui.ChatActivity;
+import org.telegram.ui.LinkManager;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AnimatedEmojiSpan;
 import org.telegram.ui.Components.AnimatedFileDrawable;
@@ -256,7 +257,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Stack;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -622,6 +622,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
 
         default void didPressReplyMessage(ChatMessageCell cell, int id, float x, float y, boolean longpress) {
+        }
+
+        default boolean didPressDeletedReplyQuote(ChatMessageCell cell, MessageObject messageObject) {
+            return false;
         }
 
         default boolean isProgressLoading(ChatMessageCell cell, int type) {
@@ -1737,6 +1741,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private static final int SIDE_BUTTON_SPONSORED_CLOSE = 4;
     private static final int SIDE_BUTTON_SPONSORED_MORE = 5;
     private float sideStartX, sideStartY;
+    private final app.exteraless.chats.StickerTime.Row stickerTimeRow = new app.exteraless.chats.StickerTime.Row();
+    private float stickerTimeOffsetX;
     private float summarizeButtonX, summarizeButtonY;
 
     private StaticLayout nameLayout;
@@ -1886,6 +1892,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private int lastRepliesCount;
     private float selectedBackgroundProgress;
     private boolean lastTranslated;
+    private boolean lastOwnerTranslated;
 
     public float viewTop;
     public int backgroundHeight;
@@ -1900,6 +1907,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public final TransitionParams transitionParams = new TransitionParams();
     private boolean edited;
     private boolean ayuDeleted;
+    private boolean lastAyuDeleted;
     private boolean imageDrawn;
     private boolean photoImageOutOfBounds;
 
@@ -2340,7 +2348,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     } else if (currentChat != null) {
                         int id;
                         TLRPC.Chat chat = currentChat;
-                        if (currentMessageObject.messageOwner.fwd_from != null) {
+                        if (currentMessageObject.messageOwner.fwd_from != null && currentMessageObject.getFromChatId() != -currentChat.id) {
                             if (chat == null && (currentMessageObject.messageOwner.fwd_from.flags & 16) != 0) {
                                 id = currentMessageObject.messageOwner.fwd_from.saved_from_msg_id;
                             } else {
@@ -2662,7 +2670,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 y -= textY;
                 for (int a = 0; a < currentMessageObject.textLayoutBlocks.size(); a++) {
                     MessageObject.TextLayoutBlock block = currentMessageObject.textLayoutBlocks.get(a);
-                    if (block.quoteCollapse && block.collapsedHeight < block.height && y >= block.textYOffset(currentMessageObject.textLayoutBlocks, transitionParams) && y < block.textYOffset(currentMessageObject.textLayoutBlocks, transitionParams) + block.padTop + block.height(transitionParams) + block.padBottom) {
+                    if ((block.quoteCollapse && block.collapsedHeight < block.height || isDeletedReplyQuoteBlock(currentMessageObject, block)) && y >= block.textYOffset(currentMessageObject.textLayoutBlocks, transitionParams) && y < block.textYOffset(currentMessageObject.textLayoutBlocks, transitionParams) + block.padTop + block.height(transitionParams) + block.padBottom) {
                         pressedBlock = a;
                         if (block.collapsedBounce == null || block.collapsedBounce.getView() != this) {
                             block.collapsedBounce = new ButtonBounce(this);
@@ -2681,7 +2689,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                             if (msg == null) {
                                 msg = block.messageObject = getPrimaryMessageObject();
                             }
-                            if (msg != null) {
+                            if (isDeletedReplyQuoteBlock(currentMessageObject, block) && delegate != null && delegate.didPressDeletedReplyQuote(this, currentMessageObject)) {
+                                continue;
+                            }
+                            if (msg != null && block.quoteCollapse && block.collapsedHeight < block.height) {
                                 final boolean newCollapsed = !block.collapsed();
                                 msg.expandedQuotes = msg.expandedQuotes == null ? new HashSet<>() : new HashSet<>(msg.expandedQuotes);
                                 if (newCollapsed) {
@@ -2714,6 +2725,18 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             pressedBlock = -1;
         }
         return pressedBlock != -1;
+    }
+
+    private MessageObject getCaptionMessageObject() {
+        if (currentMessagesGroup != null && currentMessagesGroup.findCaptionMessageObject() != null) {
+            return currentMessagesGroup.findCaptionMessageObject();
+        }
+        return currentMessageObject;
+    }
+
+    private static boolean isDeletedReplyQuoteBlock(MessageObject messageObject, MessageObject.TextLayoutBlock block) {
+        return block != null && block.quote && block.charactersOffset == 0
+                && app.exteraless.chats.DeletedReplyQuote.quoteLength(messageObject) > 0;
     }
 
     private boolean checkCaptionMotionEvent(MotionEvent event) {
@@ -2886,7 +2909,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 y -= captionY;
                 for (int a = 0; a < captionLayout.textLayoutBlocks.size(); a++) {
                     MessageObject.TextLayoutBlock block = captionLayout.textLayoutBlocks.get(a);
-                    if (block.quoteCollapse && block.collapsedHeight < block.height && y >= block.textYOffset(captionLayout.textLayoutBlocks, transitionParams) && y < block.textYOffset(captionLayout.textLayoutBlocks, transitionParams) + block.padTop + block.height(transitionParams) + block.padBottom) {
+                    if ((block.quoteCollapse && block.collapsedHeight < block.height || isDeletedReplyQuoteBlock(getCaptionMessageObject(), block)) && y >= block.textYOffset(captionLayout.textLayoutBlocks, transitionParams) && y < block.textYOffset(captionLayout.textLayoutBlocks, transitionParams) + block.padTop + block.height(transitionParams) + block.padBottom) {
                         pressedBlock = a;
                         if (block.collapsedBounce == null || block.collapsedBounce.getView() != this) {
                             block.collapsedBounce = new ButtonBounce(this);
@@ -2901,6 +2924,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     for (int a = 0; a < captionLayout.textLayoutBlocks.size(); a++) {
                         MessageObject.TextLayoutBlock block = captionLayout.textLayoutBlocks.get(a);
                         if (a == pressedBlock && !transitionParams.animateExpandedQuotes) {
+                            MessageObject captionMessage = getCaptionMessageObject();
+                            if (isDeletedReplyQuoteBlock(captionMessage, block) && delegate != null && delegate.didPressDeletedReplyQuote(this, captionMessage)) {
+                                continue;
+                            }
+                            if (!(block.quoteCollapse && block.collapsedHeight < block.height)) {
+                                continue;
+                            }
                             MessageObject msg = getPrimaryMessageObject();
                             final boolean newCollapsed = !block.collapsed();
                             msg.expandedQuotes = msg.expandedQuotes == null ? new HashSet<>() : new HashSet<>(msg.expandedQuotes);
@@ -5279,7 +5309,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     } else if (
                         sideButtonVisible &&
                         drawSideButton != 0 &&
-                        x >= sideStartX - dp(24) && x <= sideStartX + dp(40) &&
+                        x >= sideStartX - sideButtonTouchLeft() && x <= sideStartX + sideButtonTouchRight() &&
                         y >= sideStartY - dp(drawSummarizeButton ? 6 : 24) && y <= sideStartY + dp(38 + (drawSideButton == 3 && commentLayout != null ? 18 : 0) + (drawSideButton2 == SIDE_BUTTON_SPONSORED_MORE ? 38 : 0))
                     ) {
                         if (currentMessageObject.isSent()) {
@@ -5328,7 +5358,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                             } else if (currentChat != null) {
                                 int id;
                                 TLRPC.Chat chat = currentChat;
-                                if (currentMessageObject.messageOwner.fwd_from != null
+                                if (currentMessageObject.messageOwner.fwd_from != null && currentMessageObject.getFromChatId() != -currentChat.id
                                         && !(drawNameAvatar && currentMessageObject.hasWideChannelPostHeader())) {
                                     if ((currentMessageObject.messageOwner.fwd_from.flags & 16) != 0) {
                                         id = currentMessageObject.messageOwner.fwd_from.saved_from_msg_id;
@@ -5443,7 +5473,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
                         if (!(
                             sideButtonVisible &&
-                            x >= sideStartX - dp(24) && x <= sideStartX + dp(40) &&
+                            x >= sideStartX - sideButtonTouchLeft() && x <= sideStartX + sideButtonTouchRight() &&
                             y >= sideStartY - dp(drawSummarizeButton ? 6 : 24) && y <= sideStartY + dp(38 + (drawSideButton == 3 && commentLayout != null ? 18 : 0) + (drawSideButton2 == SIDE_BUTTON_SPONSORED_MORE ? 38 : 0))
                         )) {
                             sideButtonPressed = false;
@@ -6066,7 +6096,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
 
-        final boolean reactionsVisible = intersect(reactionsLayoutInBubble.y, reactionsLayoutInBubble.y + reactionsLayoutInBubble.height, childPosition, childPosition + visibleHeight);
+        final boolean reactionsVisible = transitionParams.animateChange || transitionParams.animateBackgroundBoundsInner || intersect(reactionsLayoutInBubble.y, reactionsLayoutInBubble.y + reactionsLayoutInBubble.height, childPosition, childPosition + visibleHeight);
         if (this.reactionsVisible != reactionsVisible) {
             this.reactionsVisible = reactionsVisible;
             invalidate();
@@ -6991,13 +7021,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             messageChanged = true;
         }
         boolean transChanged = false;
-        if (lastTranslated != messageObject.messageOwner.translated) {
-            lastTranslated = messageObject.messageOwner.translated;
+        if (lastOwnerTranslated != messageObject.messageOwner.translated) {
+            lastOwnerTranslated = messageObject.messageOwner.translated;
             transChanged = true;
         }
 
         ayuDeleted = messageObject.isAyuDeleted();
-        if (messageChanged || dataChanged || groupChanged || pollChanged || widthChanged && messageObject.isPoll() || isPhotoDataChanged(messageObject) || pinnedBottom != bottomNear || pinnedTop != topNear || transChanged || bookmarkChanged || ayuDeleted) {
+        final boolean ayuDeletedChanged = ayuDeleted != lastAyuDeleted;
+        lastAyuDeleted = ayuDeleted;
+        if (messageChanged || dataChanged || groupChanged || pollChanged || widthChanged && messageObject.isPoll() || isPhotoDataChanged(messageObject) || pinnedBottom != bottomNear || pinnedTop != topNear || transChanged || bookmarkChanged || ayuDeletedChanged) {
             postRunnableHolder.clear();
 
             if (stickerSetIcons != null) {
@@ -7427,6 +7459,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                                             commentAvatarImages[A].setForUserOrChat(chat, commentAvatarDrawables[A]);
                                         } else {
                                             commentAvatarDrawables[A].setInfo(id, "", "");
+                                            commentAvatarImages[A].setImageBitmap((Drawable) null);
                                         }
                                     });
                                     commentAvatarImagesVisible[a] = true;
@@ -11180,6 +11213,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                                 } catch (Exception ignore) {
                                 }
                             }
+                            if (buttonTypeUrl != null) {
+                                botButton.isWebAppLink = LinkManager.isWebAppLink(buttonTypeUrl.url);
+                            }
                         }
                         if (inlineButtons.hasSeparator(row)) {
                             BotButton botButton = new BotButton(this::invalidateParentForce);
@@ -13402,7 +13438,6 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (textLayoutBlocks == null) {
             return;
         }
-        int length = end - start;
         for (int c = 0; c < textLayoutBlocks.size(); c++) {
             MessageObject.TextLayoutBlock block = textLayoutBlocks.get(c);
             if (start >= block.charactersOffset && start < block.charactersEnd) {
@@ -13411,22 +13446,21 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 try {
                     LinkPath path = obtainNewUrlPath();
                     path.setUseCornerPathImplementation(true);
-                    path.setCurrentLayout(block.textLayout, start, 0);
-                    block.textLayout.getSelectionPath(start, end, path);
+                    path.setCurrentLayout(block.textLayout, start - block.charactersOffset, 0);
+                    block.textLayout.getSelectionPath(start - block.charactersOffset, Math.min(end, block.charactersEnd) - block.charactersOffset, path);
                     path.closeRects();
                     float y = block.height + block.padBottom;
-                    if (end >= block.charactersOffset + length) {
+                    if (end > block.charactersEnd) {
                         for (int a = c + 1; a < textLayoutBlocks.size(); a++) {
                             MessageObject.TextLayoutBlock nextBlock = textLayoutBlocks.get(a);
-                            length = nextBlock.charactersEnd - nextBlock.charactersOffset;
                             path = obtainNewUrlPath();
                             path.setUseCornerPathImplementation(true);
                             y += nextBlock.padTop;
                             path.setCurrentLayout(nextBlock.textLayout, 0, y);
                             y += nextBlock.height + nextBlock.padBottom;
-                            nextBlock.textLayout.getSelectionPath(0, end - nextBlock.charactersOffset, path);
+                            nextBlock.textLayout.getSelectionPath(0, Math.min(end, nextBlock.charactersEnd) - nextBlock.charactersOffset, path);
                             path.closeRects();
-                            if (end < block.charactersOffset + length - 1) {
+                            if (end <= nextBlock.charactersEnd) {
                                 break;
                             }
                         }
@@ -13473,7 +13507,6 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
             }
             if (start >= 0 && end >= 0) {
-                int length = (end - start);
                 for (int c = 0; c < captionLayout.textLayoutBlocks.size(); c++) {
                     MessageObject.TextLayoutBlock block = captionLayout.textLayoutBlocks.get(c);
                     if (start >= block.charactersOffset && start < block.charactersEnd) {
@@ -13482,16 +13515,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         resetUrlPaths();
                         try {
                             LinkPath path = obtainNewUrlPath();
-                            path.setCurrentLayout(block.textLayout, start, 0);
-                            block.textLayout.getSelectionPath(start, end, path);
-                            if (end >= block.charactersOffset + length) {
+                            path.setCurrentLayout(block.textLayout, start - block.charactersOffset, 0);
+                            block.textLayout.getSelectionPath(start - block.charactersOffset, Math.min(end, block.charactersEnd) - block.charactersOffset, path);
+                            if (end > block.charactersEnd) {
                                 for (int a = c + 1; a < captionLayout.textLayoutBlocks.size(); a++) {
                                     MessageObject.TextLayoutBlock nextBlock = captionLayout.textLayoutBlocks.get(a);
-                                    length = nextBlock.charactersEnd - nextBlock.charactersOffset;
                                     path = obtainNewUrlPath();
                                     path.setCurrentLayout(nextBlock.textLayout, 0, nextBlock.height);
-                                    nextBlock.textLayout.getSelectionPath(0, end - nextBlock.charactersOffset, path);
-                                    if (end < block.charactersOffset + length - 1) {
+                                    nextBlock.textLayout.getSelectionPath(0, Math.min(end, nextBlock.charactersEnd) - nextBlock.charactersOffset, path);
+                                    if (end <= nextBlock.charactersEnd) {
                                         break;
                                     }
                                 }
@@ -13519,7 +13551,6 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
             }
             if (start >= 0 && end >= 0) {
-                int length = (end - start);
                 for (int c = 0; c < messageObject.textLayoutBlocks.size(); c++) {
                     MessageObject.TextLayoutBlock block = messageObject.textLayoutBlocks.get(c);
                     if (start >= block.charactersOffset && start < block.charactersEnd) {
@@ -13528,16 +13559,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         resetUrlPaths();
                         try {
                             LinkPath path = obtainNewUrlPath();
-                            path.setCurrentLayout(block.textLayout, start, 0);
-                            block.textLayout.getSelectionPath(start, end, path);
-                            if (end >= block.charactersOffset + length) {
+                            path.setCurrentLayout(block.textLayout, start - block.charactersOffset, 0);
+                            block.textLayout.getSelectionPath(start - block.charactersOffset, Math.min(end, block.charactersEnd) - block.charactersOffset, path);
+                            if (end > block.charactersEnd) {
                                 for (int a = c + 1; a < messageObject.textLayoutBlocks.size(); a++) {
                                     MessageObject.TextLayoutBlock nextBlock = messageObject.textLayoutBlocks.get(a);
-                                    length = nextBlock.charactersEnd - nextBlock.charactersOffset;
                                     path = obtainNewUrlPath();
                                     path.setCurrentLayout(nextBlock.textLayout, 0, nextBlock.height);
-                                    nextBlock.textLayout.getSelectionPath(0, end - nextBlock.charactersOffset, path);
-                                    if (end < block.charactersOffset + length - 1) {
+                                    nextBlock.textLayout.getSelectionPath(0, Math.min(end, nextBlock.charactersEnd) - nextBlock.charactersOffset, path);
+                                    if (end <= nextBlock.charactersEnd) {
                                         break;
                                     }
                                 }
@@ -17296,8 +17326,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     needRestoreColor = true;
                     oldAlpha = Theme.chat_msgTextPaint.getAlpha();
                     oldLinkAlpha = Color.alpha(Theme.chat_msgTextPaint.linkColor);
-                    Theme.chat_msgTextPaint.setAlpha((int) (oldAlpha * alpha));
-                    Theme.chat_msgTextPaint.linkColor = ColorUtils.setAlphaComponent(Theme.chat_msgTextPaint.linkColor, (int) (oldLinkAlpha * alpha));
+                    Theme.chat_msgTextPaint.setAlpha((int) (oldAlpha * Utilities.clamp01(alpha)));
+                    Theme.chat_msgTextPaint.linkColor = ColorUtils.setAlphaComponent(Theme.chat_msgTextPaint.linkColor, (int) (oldLinkAlpha * Utilities.clamp01(alpha)));
                 } else {
                     if (currentBackgroundDrawable != null) {
                         int top = currentBackgroundDrawable.getBounds().top;
@@ -18650,6 +18680,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     @Override
     public void onProgressDownload(String fileName, long downloadedSize, long totalSize) {
+        if (currentMessageObject == null) {
+            return;
+        }
         float progress = totalSize == 0 ? 0 : Math.min(1f, downloadedSize / (float) totalSize);
         currentMessageObject.loadedFileSize = downloadedSize;
         createLoadingProgressLayout(downloadedSize, totalSize);
@@ -18684,6 +18717,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     @Override
     public void onProgressUpload(String fileName, long uploadedSize, long totalSize, boolean isEncrypted) {
+        if (currentMessageObject == null) {
+            return;
+        }
         float progress = totalSize == 0 ? 0 : Math.min(1f, uploadedSize / (float) totalSize);
         currentMessageObject.loadedFileSize = uploadedSize;
         radialProgress.setProgress(progress, true);
@@ -18878,7 +18914,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
             }
         }
-        boolean showAyuDeletedMark = ayuDeleted && shouldShowAyuDeletedMark(currentMessageObject);
+        boolean showAyuDeletedMark = bubbleAyuDeleted() && shouldShowAyuDeletedMark(currentMessageObject);
         // bookmark start
         boolean showBookmarkInTime = false;
         int senderNameColor = 0;
@@ -18902,7 +18938,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             drawBookmarkInTime = showBookmarkInTime;
         }
         // bookmark end
-        final int editedDate = edited && currentMessagesGroup != null ? currentMessagesGroup.getMaxEditDate() : messageObject.messageOwner.edit_date;
+        final int rawEditedDate = edited && currentMessagesGroup != null ? currentMessagesGroup.getMaxEditDate() : messageObject.messageOwner.edit_date;
+        final int editedDate = edited && rawEditedDate == 0 && currentMessageObject.isEditing() ? ConnectionsManager.getInstance(currentAccount).getCurrentTime() : rawEditedDate;
         if (currentMessageObject.isWelcomeMessage()) {
             timeString = ""; // Long.toString(currentMessageObject.getId());
         } else if (currentMessageObject.notime || currentMessageObject.isSponsored() || currentMessageObject.isQuickReply() || currentMessageObject.isWelcomeMessage()) {
@@ -18992,7 +19029,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (edited && TimeStringHelper.useEditedIcon() && TimeStringHelper.editedDrawable != null) { // openExtera: + NaConfig.UseEditedIcon
                 timeTextWidth = timeWidth += TimeStringHelper.editedDrawable.getIntrinsicWidth();
             }
-            if (ayuDeleted && NaConfig.INSTANCE.getUseDeletedIcon().Bool() && TimeStringHelper.deletedDrawable != null) {
+            if (showAyuDeletedMark && NaConfig.INSTANCE.getUseDeletedIcon().Bool() && TimeStringHelper.deletedDrawable != null) {
                 timeTextWidth = timeWidth += TimeStringHelper.deletedDrawable.getIntrinsicWidth();
             }
             if (translated && TimeStringHelper.translatedDrawable != null) {
@@ -19242,24 +19279,32 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             } else if (currentMessageObject.messageOwner.post) {
                 currentChat = messagesController.getChat(currentMessageObject.messageOwner.peer_id.channel_id);
             }
-            if (currentUser == null && currentMessageObject.isAyuDeleted()) {
-                long userId = currentMessageObject.messageOwner.from_id.user_id;
-                final MessagesStorage messagesStorage = MessagesStorage.getInstance(currentAccount);
-                final CountDownLatch countDownLatch = new CountDownLatch(1);
-                messagesStorage.getStorageQueue().postRunnable(() -> {
-                    currentUser = messagesStorage.getUser(userId);
-                    countDownLatch.countDown();
-                });
-                try {
-                    countDownLatch.await();
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
-                if (currentUser != null) {
-                    messagesController.putUser(currentUser, true);
-                }
+            if (currentUser == null && currentMessageObject.isAyuDeleted() && currentMessageObject.messageOwner.from_id != null) {
+                loadDeletedMessageAuthor(currentMessageObject, currentMessageObject.messageOwner.from_id.user_id);
             }
         }
+    }
+
+    private static final HashSet<Long> deletedAuthorRequests = new HashSet<>();
+
+    private void loadDeletedMessageAuthor(MessageObject messageObject, long userId) {
+        final int account = currentAccount;
+        if (userId == 0 || !deletedAuthorRequests.add(userId * UserConfig.MAX_ACCOUNT_COUNT + account)) {
+            return;
+        }
+        final MessagesStorage messagesStorage = MessagesStorage.getInstance(account);
+        messagesStorage.getStorageQueue().postRunnable(() -> {
+            final TLRPC.User user = messagesStorage.getUser(userId);
+            if (user == null) {
+                return;
+            }
+            AndroidUtilities.runOnUIThread(() -> {
+                MessagesController.getInstance(account).putUser(user, true);
+                if (currentMessageObject == messageObject) {
+                    forceResetMessageObject();
+                }
+            });
+        });
     }
 
     private void setMessageObjectInternal(MessageObject messageObject) {
@@ -19898,12 +19943,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     } else if (messageObject.replyMessageObject == null && messageObject.messageOwner.reply_to != null && messageObject.messageOwner.reply_to.reply_from != null) {
                         name = messageObject.getReplyQuoteNameWithIcon();
                     } else if (messageObject.replyMessageObject != null) {
-                        if (drawForwardedName) {
-                            String fwdName = AndroidUtilities.removeDiacritics(messageObject.replyMessageObject.getForwardedName());
-                            if (fwdName != null && messageObject.getForwardedName() != null)
-                                name = fwdName;
-                            // show fwdname from replied message when this message and the replied message is all forwarded message
-                        }
+                        name = getReplyForwardedName(messageObject.replyMessageObject);
 
                         if (name == null) {
                             long fromId = messageObject.replyMessageObject.getFromChatId();
@@ -20921,6 +20961,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (shouldTranslucentDeleted() && ayuDeleted) {
             canvas.restore();
         }
+        if (ayuDeleted && !bubbleAyuDeleted() && shouldShowAyuDeletedMark(currentMessageObject)) {
+            drawGroupItemDeletedBadge(canvas);
+        }
     }
 
     public void drawBackgroundInternal(Canvas canvas, boolean fromParent) {
@@ -21334,7 +21377,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     } else {
                         currentSelectedBackgroundAlpha = 0;
                         currentBackgroundDrawable.setAlpha((int) (255 * alphaInternal));
-                        if (NaConfig.INSTANCE.getTranslucentDeletedMessages().Bool() && ayuDeleted && currentMessageObject.isOutOwner()) {
+                        if (NaConfig.INSTANCE.getTranslucentDeletedMessages().Bool() && bubbleAyuDeleted() && currentMessageObject.isOutOwner()) {
                             currentBackgroundDrawable.setAlpha((int) (255 * 0.75f));
                         }
                         currentBackgroundDrawable.drawCached(canvas, backgroundCacheParams);
@@ -22168,6 +22211,148 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         drawSideButton(canvas, false);
     }
 
+    private CharSequence getReplyForwardedName(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null || messageObject.messageOwner.fwd_from == null) {
+            return null;
+        }
+        CharSequence currentName = getReplyForwardedCurrentName(messageObject);
+        CharSequence originName = getReplyForwardedOriginName(messageObject);
+        if (TextUtils.isEmpty(originName)) {
+            return null;
+        }
+        TLRPC.MessageFwdHeader fwd = messageObject.messageOwner.fwd_from;
+        boolean linkedChannelPost = fwd.from_id instanceof TLRPC.TL_peerChannel && fwd.from_id.channel_id == linkedChatId && fwd.channel_post != 0;
+        if (messageObject.isSaved || TextUtils.isEmpty(currentName) || TextUtils.equals(currentName, originName) || linkedChannelPost) {
+            return originName;
+        }
+        SpannableStringBuilder builder = new SpannableStringBuilder();
+        builder.append(currentName).append(" d ").append(originName);
+        ColoredImageSpan arrow = new ColoredImageSpan(ContextCompat.getDrawable(getContext(), R.drawable.mini_forwarded).mutate());
+        arrow.setAlpha(0.9f);
+        builder.setSpan(arrow, currentName.length() + 1, currentName.length() + 2, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return builder;
+    }
+
+    private CharSequence getReplyForwardedCurrentName(MessageObject messageObject) {
+        TLRPC.MessageFwdHeader fwd = messageObject.messageOwner.fwd_from;
+        long selfId = UserConfig.getInstance(currentAccount).getClientUserId();
+        if (messageObject.isSaved) {
+            return getReplyForwardedOriginName(messageObject);
+        }
+        if (fwd.from_id instanceof TLRPC.TL_peerChannel && (messageObject.getDialogId() == selfId || messageObject.getDialogId() == UserObject.REPLY_BOT)) {
+            return getReplyForwardedPeerName(fwd.from_id);
+        }
+        if (messageObject.getDialogId() == UserObject.VERIFY) {
+            return getReplyForwardedPeerName(fwd.from_id);
+        }
+        TLRPC.Peer savedFrom = fwd.saved_from_peer;
+        if (savedFrom != null) {
+            if (savedFrom.user_id != 0) {
+                if (!isSavedChat && fwd.from_id instanceof TLRPC.TL_peerUser) {
+                    return getReplyForwardedPeerName(fwd.from_id);
+                }
+                return getReplyForwardedPeerName(savedFrom);
+            }
+            if (savedFrom.channel_id != 0) {
+                if (messageObject.isSavedFromMegagroup() && fwd.from_id instanceof TLRPC.TL_peerUser) {
+                    return getReplyForwardedPeerName(fwd.from_id);
+                }
+                return getReplyForwardedPeerName(savedFrom);
+            }
+            if (savedFrom.chat_id != 0) {
+                if (fwd.from_id instanceof TLRPC.TL_peerUser || fwd.from_id instanceof TLRPC.TL_peerChat || fwd.from_id instanceof TLRPC.TL_peerChannel) {
+                    return getReplyForwardedPeerName(fwd.from_id);
+                }
+                return getReplyForwardedPeerName(savedFrom);
+            }
+        } else {
+            boolean ownOrImported = fwd.imported || messageObject.getDialogId() == selfId;
+            if (fwd.from_id instanceof TLRPC.TL_peerUser && ownOrImported) {
+                return getReplyForwardedPeerName(fwd.from_id);
+            }
+            if (!TextUtils.isEmpty(fwd.saved_from_name) && ownOrImported) {
+                return AndroidUtilities.removeDiacritics(fwd.saved_from_name);
+            }
+            if (!TextUtils.isEmpty(fwd.from_name) && ownOrImported) {
+                return AndroidUtilities.removeDiacritics(fwd.from_name);
+            }
+        }
+        TLRPC.Message message = messageObject.messageOwner;
+        if (message.from_id != null) {
+            return getReplyForwardedPeerName(message.from_id);
+        }
+        if (!message.post || message.peer_id == null) {
+            return null;
+        }
+        return getReplyForwardedPeerName(message.peer_id);
+    }
+
+    private CharSequence getReplyForwardedOriginName(MessageObject messageObject) {
+        TLRPC.MessageFwdHeader fwd = messageObject.messageOwner.fwd_from;
+        if (fwd.from_id instanceof TLRPC.TL_peerChannel) {
+            CharSequence channelName = getReplyForwardedPeerName(fwd.from_id);
+            if (TextUtils.isEmpty(channelName) || TextUtils.isEmpty(fwd.post_author)) {
+                return channelName;
+            }
+            return new SpannableStringBuilder(channelName).append(" (").append(fwd.post_author).append(")");
+        }
+        if (fwd.from_id != null) {
+            return getReplyForwardedPeerName(fwd.from_id);
+        }
+        if (!TextUtils.isEmpty(fwd.from_name)) {
+            return AndroidUtilities.removeDiacritics(fwd.from_name);
+        }
+        if (!TextUtils.isEmpty(fwd.saved_from_name)) {
+            return AndroidUtilities.removeDiacritics(fwd.saved_from_name);
+        }
+        String forwardedName = messageObject.getForwardedName();
+        return forwardedName == null ? null : AndroidUtilities.removeDiacritics(forwardedName);
+    }
+
+    private CharSequence getReplyForwardedPeerName(TLRPC.Peer peer) {
+        if (peer instanceof TLRPC.TL_peerUser) {
+            TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(peer.user_id);
+            return user == null ? null : AndroidUtilities.removeDiacritics(UserObject.getUserName(user));
+        }
+        if (peer instanceof TLRPC.TL_peerChannel) {
+            TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(peer.channel_id);
+            return chat == null ? null : AndroidUtilities.removeDiacritics(chat.title);
+        }
+        if (peer instanceof TLRPC.TL_peerChat) {
+            TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(peer.chat_id);
+            return chat == null ? null : AndroidUtilities.removeDiacritics(chat.title);
+        }
+        return null;
+    }
+
+    private app.exteraless.chats.StickerTime.Row stickerTimeRow() {
+        app.exteraless.chats.StickerTime.Row row = stickerTimeRow;
+        row.message = currentMessageObject;
+        row.overStickerOffsetX = -dp(STICKER_STATUS_OFFSET);
+        row.timeWidth = timeWidth;
+        row.stickerLeft = photoImage.getImageX();
+        row.stickerRight = photoImage.getImageX2();
+        row.stickerWidth = photoImage.getImageWidth();
+        row.anchorY = getPhotoBottom() + additionalTimeOffsetY;
+        row.cellWidth = getMeasuredWidth();
+        row.sideButton = drawSideButton != 0 && !hideSideButtonByQuickShare
+                && !(currentPosition != null && currentMessagesGroup != null && currentMessagesGroup.isDocuments && !currentPosition.last);
+        row.hasName = drawNameLayout && nameLayout != null;
+        row.nameLeft = nameX;
+        row.nameWidth = nameWidth;
+        row.nameTop = nameY;
+        row.nameHeight = nameLayout != null ? nameLayout.getHeight() : 0;
+        return row;
+    }
+
+    private float sideButtonTouchLeft() {
+        return app.exteraless.chats.StickerTime.getSideButtonTouchLeft(stickerTimeRow(), dp(24));
+    }
+
+    private float sideButtonTouchRight() {
+        return app.exteraless.chats.StickerTime.getSideButtonTouchRight(stickerTimeRow(), dp(40));
+    }
+
     public void drawSideButton(Canvas canvas, boolean fromQuickShare) {
         if (hideSideButtonByQuickShare && !fromQuickShare || drawSideButton == 0) {
             return;
@@ -22187,6 +22372,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 sideStartX += currentMessagesGroup.transitionParams.offsetRight - animationOffsetX;
             }
         }
+        sideStartX = app.exteraless.chats.StickerTime.getSideButtonX(stickerTimeRow(), sideStartX);
         if (drawSideButton == SIDE_BUTTON_SPONSORED_CLOSE) {
             sideStartY = dp(6);
         } else {
@@ -22515,7 +22701,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 currentBackgroundShadowDrawable.draw(canvas);
                 currentBackgroundShadowDrawable.setAlpha(255);
             }
-            currentBackgroundDrawable.setAlpha((int) (getAlpha() * (shouldTranslucentDeleted() && ayuDeleted ? 255 * 0.75f : 255)));
+            currentBackgroundDrawable.setAlpha((int) (getAlpha() * (shouldTranslucentDeleted() && bubbleAyuDeleted() ? 255 * 0.75f : 255)));
             currentBackgroundDrawable.setBounds(left, top, right, bottom);
             currentBackgroundDrawable.drawCached(canvas, backgroundCacheParams);
             currentBackgroundDrawable.setAlpha(255);
@@ -23915,20 +24101,28 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (commentAvatarImages != null) {
                     int toAdd = dp(17);
                     int ax = x + getExtraTextX();
+                    int rank = -1;
+                    for (int a = 0; a < commentAvatarImages.length; a++) {
+                        if (commentAvatarImagesVisible[a] && commentAvatarImages[a].hasImageSet()) {
+                            rank++;
+                        }
+                    }
+                    final int last = rank;
                     for (int a = commentAvatarImages.length - 1; a >= 0; a--) {
                         if (!commentAvatarImagesVisible[a] || !commentAvatarImages[a].hasImageSet()) {
                             continue;
                         }
-                        commentAvatarImages[a].setImageX(ax + toAdd * a);
+                        commentAvatarImages[a].setImageX(ax + toAdd * rank);
                         commentAvatarImages[a].setImageY(y - dp(4) + (pinnedBottom ? dp(2) : 0));
-                        if (a != commentAvatarImages.length - 1) {
+                        if (rank != last) {
                             canvas.drawCircle(commentAvatarImages[a].getCenterX(), commentAvatarImages[a].getCenterY(), dp(13), currentBackgroundDrawable.getPaint());
                         }
                         commentAvatarImages[a].draw(canvas);
                         drawnAvatars = true;
-                        if (a != 0) {
+                        if (rank != 0) {
                             avatarsOffset += 17;
                         }
+                        rank--;
                     }
                 }
                 if (getAlpha() != 1f) {
@@ -24467,7 +24661,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_JOINED_CHANNEL) {
             return;
         }
-        if (NekoConfig.hideTimeForSticker.Bool() && currentMessageObject != null && currentMessageObject.isAnyKindOfSticker() && !isDrawSelectionBackground() && !currentMessageObject.isAyuDeleted()) {
+        if (app.exteraless.chats.StickerTime.isHidden(currentMessageObject) && !isDrawSelectionBackground() && !currentMessageObject.isAyuDeleted()) {
             return;
         }
         for (int i = 0; i < 2; i++) {
@@ -24528,7 +24722,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 x -= dp(1);
             }
             if (currentMessageObject != null && (currentMessageObject.type == MessageObject.TYPE_ANIMATED_STICKER || currentMessageObject.isAnyKindOfSticker())) {
-                x -= dp(6);
+                x += (int) stickerTimeOffsetX;
             }
             int sz = dp(14);
             int cx = x + sz / 2, cy = y + sz / 2;
@@ -24608,6 +24802,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (transitionParams.animateEditedEnter) {
             timeTitleTimeX -= transitionParams.animateEditedWidthDiff * (1f - transitionParams.animateChangeProgress);
         }
+        stickerTimeOffsetX = app.exteraless.chats.StickerTime.getTimeOffsetX(stickerTimeRow(), timeX);
 
         int timeYOffset;
         if (shouldDrawTimeOnMedia()) {
@@ -24645,7 +24840,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             } else {
                 r = dp(4) + (currentMessageObject != null && currentMessageObject.isAnyKindOfSticker() ? dp(8) : 0);
             }
-            timeX += (currentMessageObject != null && currentMessageObject.isAnyKindOfSticker() ? dp(-STICKER_STATUS_OFFSET) : 0);
+            timeX += stickerTimeOffsetX;
             if (effectId != 0) {
                 timeX -= dp(14 + 4);
             }
@@ -24695,7 +24890,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
             alpha = oldAlpha3;
 
-            float additionalX = -timeLayout.getLineLeft(0) + (currentMessageObject != null && currentMessageObject.isAnyKindOfSticker() ? dp(-STICKER_STATUS_OFFSET) : 0);
+            float additionalX = -timeLayout.getLineLeft(0) + stickerTimeOffsetX;
             if (currentMessageObject.shouldDrawReactions() && reactionsLayoutInBubble.isSmall) {
                 updateReactionLayoutPosition();
                 reactionsLayoutInBubble.setScrimProgress(0, false);
@@ -25399,7 +25594,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         timeY -= dp(8.5f);
 
-        float offsetX = currentMessageObject != null && currentMessageObject.isAnyKindOfSticker() ? dp(-STICKER_STATUS_OFFSET) : 0;
+        float offsetX = currentMessageObject != null && currentMessageObject.isAnyKindOfSticker() ? stickerTimeOffsetX : 0;
         if (drawClock) {
             MsgClockDrawable drawable = Theme.chat_msgClockDrawable;
             int color;
@@ -30265,6 +30460,50 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     protected boolean shouldTranslucentDeleted() {
         return NaConfig.INSTANCE.getTranslucentDeletedMessages().Bool();
+    }
+
+    private boolean bubbleAyuDeleted() {
+        if (currentPosition == null || currentMessagesGroup == null || currentMessagesGroup.messages.size() < 2) {
+            return ayuDeleted;
+        }
+        for (int a = 0, size = currentMessagesGroup.messages.size(); a < size; a++) {
+            if (!currentMessagesGroup.messages.get(a).isAyuDeleted()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Drawable groupItemDeletedIcon;
+    private int groupItemDeletedIconColor;
+
+    private void drawGroupItemDeletedBadge(Canvas canvas) {
+        if (photoImage.getImageWidth() < dp(40) || photoImage.getImageHeight() < dp(40)) {
+            return;
+        }
+        if (groupItemDeletedIcon == null) {
+            groupItemDeletedIcon = ContextCompat.getDrawable(getContext(), R.drawable.msg_delete_solar_12);
+            if (groupItemDeletedIcon == null) {
+                return;
+            }
+            groupItemDeletedIcon = groupItemDeletedIcon.mutate();
+        }
+        final int color = getThemedColor(Theme.key_chat_mediaTimeText);
+        if (groupItemDeletedIconColor != color) {
+            groupItemDeletedIconColor = color;
+            groupItemDeletedIcon.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
+        }
+        final int size = dp(22);
+        final float x = photoImage.getImageX() + dp(6);
+        final float y = photoImage.getImageY() + dp(6);
+        AndroidUtilities.rectTmp.set(x, y, x + size, y + size);
+        canvas.drawRoundRect(AndroidUtilities.rectTmp, size / 2f, size / 2f, getThemedPaint(Theme.key_paint_chatTimeBackground));
+        final int iw = groupItemDeletedIcon.getIntrinsicWidth();
+        final int ih = groupItemDeletedIcon.getIntrinsicHeight();
+        final int cx = (int) AndroidUtilities.rectTmp.centerX();
+        final int cy = (int) AndroidUtilities.rectTmp.centerY();
+        groupItemDeletedIcon.setBounds(cx - iw / 2, cy - ih / 2, cx - iw / 2 + iw, cy - ih / 2 + ih);
+        groupItemDeletedIcon.draw(canvas);
     }
 
     // bookmark start

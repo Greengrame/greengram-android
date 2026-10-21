@@ -97,7 +97,7 @@ public class TranscribeHelper {
             return;
         }
         final app.exteraless.settings.OpenExteraChatsActivity activity =
-                new app.exteraless.settings.OpenExteraChatsActivity();
+                new app.exteraless.settings.OpenExteraChatsActivity(app.exteraless.settings.OpenExteraChatsActivity.SCREEN_MEDIA);
         fragment.presentFragment(activity);
         AndroidUtilities.runOnUIThread(() -> activity.scrollToRow("transcribeProvider", () -> {}));
     }

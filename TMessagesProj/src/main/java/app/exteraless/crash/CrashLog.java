@@ -1,9 +1,19 @@
 package app.exteraless.crash;
 
 import android.content.Context;
+import android.os.Debug;
+import android.os.Process;
+import android.os.SystemClock;
 
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
+import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.UserConfig;
+import org.telegram.ui.ActionBar.INavigationLayout;
+import org.telegram.ui.LaunchActivity;
+
+import app.exteraless.plugins.Plugin;
+import app.exteraless.plugins.PluginsController;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -48,6 +58,9 @@ public final class CrashLog {
             if (thread != null) {
                 report.append("thread: ").append(thread.getName()).append('\n');
             }
+            if (isOutOfMemory(error)) {
+                appendMemoryState(report);
+            }
             report.append('\n').append(stack);
 
             String text = report.toString();
@@ -62,6 +75,62 @@ public final class CrashLog {
                 writer.flush();
             } finally {
                 writer.close();
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    private static boolean isOutOfMemory(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof OutOfMemoryError) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void appendMemoryState(StringBuilder report) {
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            long used = runtime.totalMemory() - runtime.freeMemory();
+            report.append("heap: ").append(used >> 20).append(" / ").append(runtime.maxMemory() >> 20)
+                    .append(" MB, native: ").append(Debug.getNativeHeapAllocatedSize() >> 20).append(" MB\n");
+            long uptime = (SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime()) / 60000L;
+            report.append("uptime: ").append(uptime / 60).append(" h ").append(uptime % 60).append(" min\n");
+        } catch (Throwable ignore) {
+        }
+        try {
+            PluginsController controller = PluginsController.peekInstance();
+            if (controller != null) {
+                int total = 0;
+                int enabled = 0;
+                for (Plugin plugin : controller.plugins.values()) {
+                    total++;
+                    if (plugin.isEnabled()) {
+                        enabled++;
+                    }
+                }
+                report.append("plugins: ").append(enabled).append(" enabled / ").append(total).append('\n');
+            }
+        } catch (Throwable ignore) {
+        }
+        try {
+            int accounts = 0;
+            int dialogs = 0;
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (UserConfig.getInstance(a).isClientActivated()) {
+                    accounts++;
+                    dialogs += MessagesController.getInstance(a).dialogs_dict.size();
+                }
+            }
+            report.append("accounts: ").append(accounts).append(", dialogs: ").append(dialogs).append('\n');
+        } catch (Throwable ignore) {
+        }
+        try {
+            LaunchActivity activity = LaunchActivity.instance;
+            INavigationLayout layout = activity != null ? activity.getActionBarLayout() : null;
+            if (layout != null) {
+                report.append("screens: ").append(layout.getFragmentStack().size()).append('\n');
             }
         } catch (Throwable ignore) {
         }

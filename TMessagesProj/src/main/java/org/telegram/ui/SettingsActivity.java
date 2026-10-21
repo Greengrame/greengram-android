@@ -1,5 +1,9 @@
 package org.telegram.ui;
 
+import tw.nekomimi.nekogram.utils.ShareUtil;
+import app.exteraless.debug.EnergyProfiler;
+import app.exteraless.debug.JankProfiler;
+import app.exteraless.debug.PluginToggleTrace;
 import app.exteraless.settings.OpenExteraSettingsActivity;
 
 import static org.telegram.messenger.AndroidUtilities.dp;
@@ -7,6 +11,8 @@ import static org.telegram.messenger.AndroidUtilities.lerp;
 import static org.telegram.messenger.AndroidUtilities.replaceSingleTag;
 import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
+import static org.telegram.ui.PremiumPreviewFragment.applyNewSpan;
+import static org.telegram.ui.PremiumPreviewFragment.applyNewSpanTimed;
 import static org.telegram.ui.Stars.StarGiftSheet.replaceUnderstood;
 
 import android.animation.Animator;
@@ -73,6 +79,7 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.AuthTokensHelper;
 import org.telegram.messenger.BirthdayController;
 import org.telegram.messenger.BuildVars;
+import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.ChatThemeController;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLoader;
@@ -88,6 +95,10 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.SharedPrefsHelper;
+import org.telegram.ui.Cells.TextCell;
+import org.telegram.ui.Wallet.GramWallet;
+import org.telegram.ui.Wallet.WalletActivity;
+import org.telegram.utils.settings.SharedSettings;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.browser.Browser;
@@ -248,6 +259,11 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         super.onResume();
         Bulletin.Delegate delegate = new Bulletin.Delegate() {
             @Override
+            public int getTopOffset(int tag) {
+                return AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight();
+            }
+
+            @Override
             public int getBottomOffset(int tag) {
                 return navigationBarHeight + additionNavigationBarHeight;
             }
@@ -401,7 +417,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, this::onLongClick);
         listView.adapter.setApplyBackground(false);
         listView.setSections();
-        listView.setPadding(0, AndroidUtilities.statusBarHeight + dp(12), 0, AndroidUtilities.navigationBarHeight + additionNavigationBarHeight);
+        listView.setPadding(0, AndroidUtilities.statusBarHeight + dp(12), 0, AndroidUtilities.navigationBarHeight + additionNavigationBarHeight + miniPlayerPadding);
         listView.setClipToPadding(false);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
@@ -568,8 +584,13 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             setInfo();
             scheduleItemsUpdate(true);
         } else if (id == NotificationCenter.updateInterfaces) {
-            setInfo();
-            scheduleItemsUpdate(false);
+            final int mask = (Integer) args[0];
+            if (isPaused()) {
+                scheduleItemsUpdate(false);
+            } else if ((mask & (MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_AVATAR | MessagesController.UPDATE_MASK_PHONE | MessagesController.UPDATE_MASK_USER_PHONE | MessagesController.UPDATE_MASK_EMOJI_STATUS)) != 0) {
+                setInfo();
+                scheduleItemsUpdate(false);
+            }
         } else if (id == NotificationCenter.newSuggestionsAvailable) {
             scheduleItemsUpdate(true);
         }
@@ -771,6 +792,12 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         // шестерёнки, акцент фирменного цвета на обе точки градиента.
         items.add(SettingCell.Factory.of(-1, 0xFF993C38, 0xFF993C38, R.drawable.exteraless_icon_tile, getString(R.string.OpenExteraPreferences), getString(R.string.OpenExteraInfo)));
         items.add(UItem.asShadow(null));
+        final boolean walletAbove = getConnectionsManager().getCurrentTime() - 1791538462 < 4 * 7 * 24 * 60 * 60;
+        if (walletAbove && getMessagesController().config.walletAvailable.get()) {
+            final GramWallet wallet = GramWallet.getInstance(currentAccount);
+            items.add(SettingCell.Factory.of(25, 0, 0, Theme.isCurrentThemeDark() ? R.drawable.settings_wallet_dark : R.drawable.settings_wallet, TextCell.applyNewSpanTimed(getString(R.string.WalletAttachMoney), 1790679020), null, wallet.getBalance() > 0 ? GramWallet.formatGrams(wallet.getBalance()) : null));
+            items.add(UItem.asShadow(null));
+        }
 
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
         items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
@@ -787,9 +814,17 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         boolean hidePremium = NaConfig.INSTANCE.getHidePremiumSection().Bool();
         boolean hideHelp = NaConfig.INSTANCE.getHideHelpSection().Bool();
+        final boolean walletBelow = !walletAbove && getMessagesController().config.walletAvailable.get();
 
-        if (!(hidePremium && hideHelp)) {
+        if (walletBelow || !(hidePremium && hideHelp)) {
             items.add(UItem.asShadow(null));
+        }
+        if (walletBelow) {
+            final GramWallet wallet = GramWallet.getInstance(currentAccount);
+            items.add(SettingCell.Factory.of(25, 0, 0, Theme.isCurrentThemeDark() ? R.drawable.settings_wallet_dark : R.drawable.settings_wallet, TextCell.applyNewSpanTimed(getString(R.string.WalletAttachMoney), 1790679020), null, wallet.getBalance() > 0 ? GramWallet.formatGrams(wallet.getBalance()) : null));
+            if (!(hidePremium && hideHelp)) {
+                items.add(UItem.asShadow(null));
+            }
         }
 
         if (!hidePremium) {
@@ -803,22 +838,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             }
             StarsController.getInstance(currentAccount, true).getBalance();
             if (ApplicationLoader.isBetaBuild() || ApplicationLoader.isStandaloneBuild() || ApplicationLoader.isHuaweiStoreBuild() || (StarsController.getInstance(currentAccount, true).balanceAvailable() && (StarsController.getInstance(currentAccount, true).hasTransactions() || StarsController.getInstance(currentAccount, true).getBalance().positive()))) {
-                StarsController c = StarsController.getTonInstance(currentAccount);
-                long balance = c.getBalance().amount;
-                items.add(SettingCell.Factory.of(13, 0xFF1BA4ED, 0xFF1488E1, R.drawable.settings_gram_24, getString(R.string.MyTON), null, c.balanceAvailable() && balance > 0 ? StarsIntroActivity.formatStarsAmount(c.getBalance(), 0.85f, ' ') : ""));
+                final StarsController c = StarsController.getTonInstance(currentAccount);
+                final long balance = c.getBalance().amount;
+                items.add(SettingCell.Factory.of(13, 0xFF1BA4ED, 0xFF1488E1, R.drawable.filled_gram_earnings, getString(R.string.GramEarnings), null, c.balanceAvailable() && balance > 0 ? StarsIntroActivity.formatStarsAmount(c.getBalance(), 0.85f, ' ') : ""));
             }
-
-        TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
-        if (menuBots != null && menuBots.bots != null && !menuBots.bots.isEmpty()) {
-            for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
-                final long WALLET_BOT_ID = 1985737506L;
-                if (attachMenuBot.show_in_side_menu && attachMenuBot.bot_id == WALLET_BOT_ID) {
-                    UItem item = SettingCell.Factory.ofBot(attachMenuBot, 0xFF1BA4ED, 0xFF1488E1, R.drawable.settings_wallet);
-                    item.object = attachMenuBot;
-                    items.add(item);
-                }
-            }
-        }
 
 
             if (!getMessagesController().premiumFeaturesBlocked()) {
@@ -947,6 +970,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             case 13:
                 presentSettingFragment(new TONIntroActivity());
                 break;
+            case 25:
+                presentSettingFragment(new WalletActivity());
+                break;
             case 15:
                 presentSettingFragment(new PremiumPreviewFragment(PremiumPreviewFragment.FEATURES_BUSINESS, "settings"));
                 break;
@@ -1072,8 +1098,21 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         final Insets systemInsets = AndroidUtilities.getDefaultWindowInsets(insets, false);
         navigationBarHeight = systemInsets.bottom;
         final int statusBarHeight = systemInsets.top;
-        listView.setPadding(0, statusBarHeight + dp(12), 0, navigationBarHeight + additionNavigationBarHeight);
+        listView.setPadding(0, statusBarHeight + dp(12), 0, navigationBarHeight + additionNavigationBarHeight + miniPlayerPadding);
         return WindowInsetsCompat.CONSUMED;
+    }
+
+    private int miniPlayerPadding;
+
+    @Override
+    public void setMiniPlayerInset(float inset, int padding) {
+        if (miniPlayerPadding == padding) {
+            return;
+        }
+        miniPlayerPadding = padding;
+        if (listView != null) {
+            listView.setPadding(0, listView.getPaddingTop(), 0, navigationBarHeight + additionNavigationBarHeight + miniPlayerPadding);
+        }
     }
 
     public static class AccountCell extends LinearLayout implements Theme.Colorable {
@@ -1253,6 +1292,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         private final TextView subtitleView;
         private final TextView valueView;
         private final boolean mini;
+        private boolean hasBackground = true;
 
         public SettingCell(Context context, Theme.ResourcesProvider resourcesProvider) {
             this(context, resourcesProvider, false);
@@ -1308,7 +1348,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
             subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
             valueView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider));
-            iconBackground.setDrawBorder(resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark());
+            iconBackground.setDrawBorder(hasBackground && (resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark()));
         }
 
         private boolean twoLines;
@@ -1319,6 +1359,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             CharSequence subtitle,
             CharSequence value
         ) {
+            hasBackground = iconColorTop != 0 || iconColorBottom != 0;
             iconLayout.setVisibility(icon != 0 ? View.VISIBLE : View.GONE);
             titleView.setTranslationX(icon == 0 ? dp(2) : 0);
             subtitleView.setTranslationX(icon == 0 ? dp(2) : 0);
@@ -1336,6 +1377,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             subtitleView.setVisibility((twoLines = !TextUtils.isEmpty(subtitle)) ? View.VISIBLE : View.GONE);
             subtitleView.setText(subtitle);
             setValue(value);
+            updateColors();
         }
 
         public static void applyIconColors(
@@ -1621,6 +1663,57 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             return Unit.INSTANCE;
         });
 
+        if (BuildConfig.DEBUG_TOOLS) {
+            builder.addItem(getString(JankProfiler.isRunning() ? R.string.OEProfilerStop : R.string.OEProfilerStart), R.drawable.msg_speed, (it) -> {
+                final Activity activity = getParentActivity();
+                if (JankProfiler.isRunning()) {
+                    JankProfiler.stop(file -> shareProfilerReport(activity, file));
+                } else if (activity != null) {
+                    JankProfiler.start(activity);
+                    BulletinFactory.of(SettingsActivity.this).createSimpleBulletin(R.raw.info, getString(R.string.OEProfilerStarted)).show();
+                }
+                return Unit.INSTANCE;
+            });
+
+            if (!JankProfiler.isRunning() && JankProfiler.getLastReport() != null) {
+                builder.addItem(getString(R.string.OEProfilerShareLast), R.drawable.msg_share, (it) -> {
+                    shareProfilerReport(getParentActivity(), JankProfiler.getLastReport());
+                    return Unit.INSTANCE;
+                });
+            }
+
+            builder.addItem(getString(EnergyProfiler.isRunning() ? R.string.OEEnergyProfilerStop : R.string.OEEnergyProfilerStart), R.drawable.msg_speed, (it) -> {
+                final Activity activity = getParentActivity();
+                if (EnergyProfiler.isRunning()) {
+                    EnergyProfiler.stop(file -> shareProfilerReport(activity, file));
+                } else if (activity != null) {
+                    EnergyProfiler.start(activity);
+                    BulletinFactory.of(SettingsActivity.this).createSimpleBulletin(R.raw.info, getString(R.string.OEEnergyProfilerStarted)).show();
+                }
+                return Unit.INSTANCE;
+            });
+
+            if (EnergyProfiler.isRunning()) {
+                builder.addItem(getString(R.string.OEEnergyProfilerShareCurrent), R.drawable.msg_share, (it) -> {
+                    final Activity activity = getParentActivity();
+                    EnergyProfiler.shareCurrent(file -> shareProfilerReport(activity, file));
+                    return Unit.INSTANCE;
+                });
+            } else if (EnergyProfiler.getLastReport() != null) {
+                builder.addItem(getString(R.string.OEEnergyProfilerShareLast), R.drawable.msg_share, (it) -> {
+                    shareProfilerReport(getParentActivity(), EnergyProfiler.getLastReport());
+                    return Unit.INSTANCE;
+                });
+            }
+
+            if (PluginToggleTrace.getLog() != null) {
+                builder.addItem(getString(R.string.OEPluginToggleLogShare), R.drawable.msg_share, (it) -> {
+                    shareProfilerReport(getParentActivity(), PluginToggleTrace.getLog());
+                    return Unit.INSTANCE;
+                });
+            }
+        }
+
         {
         builder.addItem(getString(R.string.CheckUpdate), R.drawable.msg_search_solar, (it) -> {
             Browser.openUrl(getContext(), "tg://update");
@@ -1677,6 +1770,13 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         });
         }
         builder.show();
+    }
+
+    private static void shareProfilerReport(Activity activity, File file) {
+        if (activity == null || activity.isFinishing() || file == null || !file.exists()) {
+            return;
+        }
+        ShareUtil.shareFile(activity, file);
     }
 
     public void openDebugMenu() {

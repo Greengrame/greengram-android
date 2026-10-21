@@ -122,7 +122,7 @@ import org.telegram.messenger.AnimationNotificationsLocker;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BotGuardHelper;
 import org.telegram.messenger.ChatObject;
-import org.telegram.messenger.CodeHighlighting;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.messenger.DownloadController;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLoader;
@@ -4562,7 +4562,7 @@ public class ArticleViewer extends IArticleViewer implements NotificationCenter.
                 actionBar.showSearch(false, true);
             } else if (actionBar.isAddressing()) {
                 actionBar.showAddress(false, true);
-            } else if (isFirstArticle() && pages[0].hasBackButton()) {
+            } else if (pages[0] != null && pages[0].hasBackButton()) {
                 pages[0].back();
             } else if (pagesStack.size() > 1) {
                 goBack();
@@ -9750,15 +9750,7 @@ public class ArticleViewer extends IArticleViewer implements NotificationCenter.
             tableLayout.setStriped(currentBlock.striped);
             tableLayout.setRtl(adapter != null && adapter.isRtl);
 
-            int maxCols = 0;
-
-            if (!currentBlock.rows.isEmpty()) {
-                TL_iv.pageTableRow row = currentBlock.rows.get(0);
-                for (int c = 0, size2 = row.cells.size(); c < size2; c++) {
-                    TL_iv.pageTableCell cell = row.cells.get(c);
-                    maxCols += (cell.colspan != 0 ? cell.colspan : 1);
-                }
-            }
+            int maxCols = TableLayout.sanitizeSpans(currentBlock.rows);
 
             for (int r = 0, size = currentBlock.rows.size(); r < size; r++) {
                 TL_iv.pageTableRow row = currentBlock.rows.get(r);
@@ -14758,16 +14750,10 @@ public class ArticleViewer extends IArticleViewer implements NotificationCenter.
         actionBar.setProgress(1, pages[1].getProgress());
         actionBar.setTransitionProgress(page1Alpha);
         if (!actionBar.isAddressing() && !actionBar.isSearching() && (windowView.movingPage || windowView.openingPage)) {
-            if (isFirstArticle() || pagesStack.size() > 1) {
-                final float backButton = lerp(pages[0].hasBackButton() || pagesStack.size() > 1 ? 1f : 0, pages[1].hasBackButton() || pagesStack.size() > 2 ? 1f : 0, page1Alpha);
-                actionBar.backButtonDrawable.setRotation(1f - backButton, false);
-                actionBar.forwardButtonDrawable.setState(false); // pages[0].hasForwardButton());
-                actionBar.setBackButtonCached(backButton > .5f);
-            } else {
-//                actionBar.backButtonDrawable.setRotation(1f - backButton, false);
-                actionBar.forwardButtonDrawable.setState(false); // pages[0].hasForwardButton());
-                actionBar.setBackButtonCached(false); // backButton > .5f);
-            }
+            final float backButton = lerp(pages[0].hasBackButton() || pagesStack.size() > 1 ? 1f : 0, pages[1].hasBackButton() || pagesStack.size() > 2 ? 1f : 0, page1Alpha);
+            actionBar.backButtonDrawable.setRotation(1f - backButton, false);
+            actionBar.forwardButtonDrawable.setState(false); // pages[0].hasForwardButton());
+            actionBar.setBackButtonCached(backButton > .5f);
             actionBar.setHasForward(pages[0].hasForwardButton());
             actionBar.setIsLocal(pages[0].isLocal());
             actionBar.setIsLoaded(pages[0].getWebView() != null && pages[0].getWebView().isPageLoaded());
@@ -14930,14 +14916,9 @@ public class ArticleViewer extends IArticleViewer implements NotificationCenter.
                     forwardButton = !last;
                     updateTitle(true);
                     if (PageLayout.this == pages[0] && !actionBar.isAddressing() && !actionBar.isSearching() && !(windowView.movingPage || windowView.openingPage)) {
-                        if (isFirstArticle() || pagesStack.size() > 1) {
-                            actionBar.backButtonDrawable.setRotation(backButton || pagesStack.size() > 1 ? 0 : 1, true);
-                            actionBar.setBackButtonCached(backButton || pagesStack.size() > 1);
-                            actionBar.forwardButtonDrawable.setState(false); // hasForwardButton());
-                        } else {
-                            actionBar.setBackButtonCached(false);
-                            actionBar.forwardButtonDrawable.setState(false);
-                        }
+                        actionBar.backButtonDrawable.setRotation(backButton || pagesStack.size() > 1 ? 0 : 1, true);
+                        actionBar.setBackButtonCached(backButton || pagesStack.size() > 1);
+                        actionBar.forwardButtonDrawable.setState(false); // hasForwardButton());
                         actionBar.setHasForward(forwardButton);
                         actionBar.setIsTonsite(pages[0] != null && pages[0].isTonsite());
                         actionBar.setIsLocal(pages[0] != null && pages[0].isLocal());

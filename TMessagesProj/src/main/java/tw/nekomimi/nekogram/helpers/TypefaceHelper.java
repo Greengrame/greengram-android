@@ -35,10 +35,10 @@ import xyz.nextalone.nagram.NaConfig;
 public class TypefaceHelper {
 
     private static final String TEST_TEXT;
-    private static final int CANVAS_SIZE = 40;
+    private static final int CANVAS_SIZE = dp(20);
     private static final Paint PAINT = new Paint() {{
-        setTextSize(20);
-        setAntiAlias(false);
+        setTextSize(CANVAS_SIZE);
+        setAntiAlias(true);
         setSubpixelText(false);
         setFakeBoldText(false);
     }};
@@ -98,7 +98,7 @@ public class TypefaceHelper {
             case AndroidUtilities.TYPEFACE_RITALIC ->
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? Typeface.create(baseTypeface(), 400, true) : Typeface.create("sans-serif", Typeface.ITALIC);
             case AndroidUtilities.TYPEFACE_ROBOTO_MONO ->
-                    Typeface.MONOSPACE;
+                    AndroidUtilities.mono();
             default -> createTypefaceFromAsset(assetPath);
         };
     }
@@ -134,15 +134,23 @@ public class TypefaceHelper {
     }
 
     private static Typeface pixelMediumTypeface(boolean italic) {
+        final Typeface regular = createTypeface(400, italic);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             final Typeface weighted = createTypeface(500, italic);
-            if (rendersDifferently(weighted, Typeface.create(baseTypeface(), 400, italic))) {
+            if (rendersDifferently(weighted, regular)) {
                 return weighted;
             }
         }
         final Typeface medium = getSystemGoogleSansMedium();
         if (medium != null) {
-            return italic ? Typeface.create(medium, Typeface.ITALIC) : medium;
+            final Typeface styled = italic ? Typeface.create(medium, Typeface.ITALIC) : medium;
+            if (rendersDifferently(styled, regular)) {
+                return styled;
+            }
+        }
+        final Typeface systemMedium = Typeface.create("sans-serif-medium", italic ? Typeface.ITALIC : Typeface.NORMAL);
+        if (rendersDifferently(systemMedium, regular)) {
+            return systemMedium;
         }
         return Typeface.create(baseTypeface(), italic ? Typeface.BOLD_ITALIC : Typeface.BOLD);
     }
@@ -347,4 +355,38 @@ public class TypefaceHelper {
         return builder;
     }
 
+
+    private static Typeface lyricsTypeface;
+
+    public static Typeface lyricsTypeface() {
+        if (lyricsTypeface != null) {
+            return lyricsTypeface;
+        }
+        Typeface base = null;
+        for (String family : new String[]{"google-sans-display", "google-sans", "google-sans-text"}) {
+            final Typeface candidate = Typeface.create(family, Typeface.NORMAL);
+            if (rendersDifferently(candidate, Typeface.DEFAULT)) {
+                base = candidate;
+                break;
+            }
+        }
+        if (base == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            final File file = findGoogleSansFile();
+            if (file != null) {
+                try {
+                    base = Typeface.createFromFile(file);
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+            }
+        }
+        if (base == null) {
+            lyricsTypeface = AndroidUtilities.bold();
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            lyricsTypeface = Typeface.create(base, 700, false);
+        } else {
+            lyricsTypeface = Typeface.create(base, Typeface.BOLD);
+        }
+        return lyricsTypeface;
+    }
 }

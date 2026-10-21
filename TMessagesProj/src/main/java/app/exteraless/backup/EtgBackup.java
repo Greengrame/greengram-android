@@ -344,6 +344,9 @@ public final class EtgBackup {
         bool(list, "immersiveDrawerAnimation", AppearanceConfig.immersiveDrawerAnimation);
         bool(list, "showFeedTab", AppearanceConfig.showFeedTab);
         bool(list, "hideStickerTime", NekoConfig.hideTimeForSticker);
+        list.add(new Entry(SECTION_EXTERA, "stickerTimeMode", KIND_INT, 0, 2, null,
+                () -> new JsonPrimitive(ChatsConfig.stickerTimeMode()),
+                value -> ChatsConfig.setStickerTimeMode(value.getAsInt())));
         bool(list, "replyColors", ChatsConfig.replyColors);
         bool(list, "replyEmoji", ChatsConfig.replyEmoji);
         bool(list, "replyBackground", ChatsConfig.replyBackground);
@@ -478,8 +481,8 @@ public final class EtgBackup {
                 () -> new JsonPrimitive(NaConfig.INSTANCE.getSliderStyle().Int() == 2),
                 value -> NaConfig.INSTANCE.getSliderStyle().setConfigInt(value.getAsBoolean() ? 2 : 0)));
         list.add(new Entry(SECTION_EXTERA, "newSwitchStyle", KIND_BOOL, 0, 0, null,
-                () -> new JsonPrimitive(NaConfig.INSTANCE.getSwitchStyle().Int() == 2),
-                value -> NaConfig.INSTANCE.getSwitchStyle().setConfigInt(value.getAsBoolean() ? 2 : 0)));
+                () -> new JsonPrimitive(NaConfig.INSTANCE.getSwitchStyle().Int() >= 2),
+                value -> NaConfig.INSTANCE.getSwitchStyle().setConfigInt(value.getAsBoolean() ? 3 : 0)));
 
         // Разделители: 0 скрыт, 1 линия, 2 сегменты. Ноль дублируется в рабочий ключ NagramX.
         list.add(new Entry(SECTION_EXTERA, "dividerStyle", KIND_INT, 0, 2, null,

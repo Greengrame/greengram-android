@@ -68,6 +68,7 @@ public class OpenExteraOtherActivity extends BaseNekoSettingsActivity {
 
     private int googleHeaderRow;
     private int crashReportsRow;
+    private int contentCaptureRow;
     private int googleDividerRow;
     private int nagramHeaderRow;
     private int nagramSettingsRow;
@@ -84,6 +85,7 @@ public class OpenExteraOtherActivity extends BaseNekoSettingsActivity {
     private boolean sensitiveEnabled;
     private boolean sensitiveCanChange;
 
+    private int backupHeaderRow;
     private int exportEtgRow;
     private int importEtgRow;
     private int etgDividerRow;
@@ -128,6 +130,7 @@ public class OpenExteraOtherActivity extends BaseNekoSettingsActivity {
         // умолчанию.
         googleHeaderRow = addRow("googleHeader");
         crashReportsRow = addRow("crashReports");
+        contentCaptureRow = addRow("contentCapture");
         googleDividerRow = addRow();
 
         nagramHeaderRow = addRow("nagramHeader");
@@ -137,18 +140,19 @@ public class OpenExteraOtherActivity extends BaseNekoSettingsActivity {
 
         experimentalHeaderRow = addRow("experimentalHeader");
         localPremiumRow = addRow("localPremium");
-        unlimitedPinnedDialogsRow = addRow("unlimitedPinnedDialogs", "UnlimitedPinnedDialogs");
-        voiceEnhancementsRow = addRow("noiseSuppressAndVoiceEnhance", "NoiseSuppressAndVoiceEnhance");
-        enhancedVideoBitrateRow = addRow("enhancedVideoBitrate", "EnhancedVideoBitrate");
+        unlimitedPinnedDialogsRow = -1;
+        voiceEnhancementsRow = -1;
+        enhancedVideoBitrateRow = -1;
         sensitiveContentRow = addRow("sensitiveDisableFiltering", "SensitiveDisableFiltering");
         experimentalDividerRow = addRow();
 
+        backupHeaderRow = addRow("backupHeader");
         exportEtgRow = addRow("exportEtgSettings");
         importEtgRow = addRow("importEtgSettings");
         etgDividerRow = addRow();
 
-        glyphRow = addRow("glyph");
-        glyphDividerRow = addRow();
+        glyphRow = -1;
+        glyphDividerRow = -1;
 
         resetSettingsRow = addRow("resetSettings");
         deleteAccountRow = addRow("deleteAccount");
@@ -194,6 +198,9 @@ public class OpenExteraOtherActivity extends BaseNekoSettingsActivity {
             }
             FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(
                     AndroidUtil.shouldEnableCrashlytics());
+        } else if (position == contentCaptureRow) {
+            toggleCheck(view, GeneralConfig.contentCapture);
+            GeneralHelper.applyContentCapture(getParentActivity());
         } else if (position == nagramSettingsRow) {
             boolean enabled = GeneralConfig.showNagramSettings.toggleConfigBool();
             if (view instanceof TextCheckCell) {
@@ -494,7 +501,9 @@ public class OpenExteraOtherActivity extends BaseNekoSettingsActivity {
             switch (holder.getItemViewType()) {
                 case TYPE_HEADER: {
                     HeaderCell cell = (HeaderCell) holder.itemView;
-                    if (position == nagramHeaderRow) {
+                    if (position == backupHeaderRow) {
+                        cell.setText(getString(R.string.OEGeneralBackupHeader));
+                    } else if (position == nagramHeaderRow) {
                         cell.setText(getString(R.string.OEGeneralNagramHeader));
                     } else if (position == experimentalHeaderRow) {
                         cell.setText(getString(R.string.Experimental));
@@ -508,8 +517,12 @@ public class OpenExteraOtherActivity extends BaseNekoSettingsActivity {
                     cell.setEnabled(true, null);
                     if (position == crashReportsRow) {
                         cell.setTextAndCheck(getString(R.string.OEGeneralCrashReports),
-                                GeneralConfig.crashReports(), false);
+                                GeneralConfig.crashReports(), true);
                         cell.setIcon(R.drawable.msg_report);
+                    } else if (position == contentCaptureRow) {
+                        cell.setTextAndValueAndCheck(getString(R.string.OEGeneralContentCapture),
+                                getString(R.string.OEGeneralContentCaptureInfo), GeneralConfig.contentCapture(), true, false);
+                        cell.setIcon(R.drawable.msg_photo_text_framed3);
                     } else if (position == nagramSettingsRow) {
                         cell.setTextAndCheck(getString(R.string.OEGeneralNagramSettings),
                                 GeneralConfig.showNagramSettings(), true);
@@ -582,7 +595,7 @@ public class OpenExteraOtherActivity extends BaseNekoSettingsActivity {
         @Override
         public int getItemViewType(int position) {
             if (position == nagramHeaderRow || position == googleHeaderRow
-                    || position == experimentalHeaderRow) {
+                    || position == experimentalHeaderRow || position == backupHeaderRow) {
                 return TYPE_HEADER;
             } else if (position == nagramDividerRow || position == experimentalDividerRow
                     || position == etgDividerRow) {

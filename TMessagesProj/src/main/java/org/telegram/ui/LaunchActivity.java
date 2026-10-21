@@ -194,6 +194,7 @@ import org.telegram.ui.Components.FloatingDebug.FloatingDebugController;
 import org.telegram.ui.Components.FolderBottomSheet;
 import org.telegram.ui.Components.Forum.ForumUtilities;
 import org.telegram.ui.Components.GroupCallPip;
+import org.telegram.ui.Components.InstantCameraView;
 import org.telegram.ui.Components.JoinGroupAlert;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.PasscodeView;
@@ -237,6 +238,9 @@ import org.telegram.ui.Stories.recorder.StoryEntry;
 import org.telegram.ui.Stories.recorder.StoryRecorder;
 import org.telegram.ui.Stories.LiveStoryPipOverlay;
 import org.telegram.ui.TON.TONIntroActivity;
+import org.telegram.ui.Wallet.GramWalletStorageAuth;
+import org.telegram.ui.Wallet.WalletActivity;
+import org.telegram.ui.Wallet.WalletSendSelectSender;
 import org.telegram.ui.bots.BotWebViewAttachedSheet;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.WebViewRequestProps;
@@ -473,10 +477,11 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         getWindow().setBackgroundDrawable(new ActivityWindowEmptyBackgroundDrawable());
         getWindow().setFormat(PixelFormat.OPAQUE);
 
-        flagSecureReason = new FlagSecureReason(getWindow(), () -> SharedConfig.passcodeHash.length() > 0 && !SharedConfig.allowScreenCapture);
+        flagSecureReason = new FlagSecureReason(getWindow(), () -> SharedConfig.passcodeHash.length() > 0 && !SharedConfig.allowScreenCapture, true);
         flagSecureReason.attach();
 
         super.onCreate(savedInstanceState);
+        app.exteraless.general.GeneralHelper.applyContentCapture(this);
         if (Build.VERSION.SDK_INT >= 24) {
             AndroidUtilities.isInMultiwindow = isInMultiWindowMode();
         }
@@ -1796,7 +1801,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                             } else if ((text.startsWith("http://") || text.startsWith("https://")) && !TextUtils.isEmpty(subject)) {
                                 text = subject + "\n" + text;
                             }
-                            sendingText = text;
+                            sendingText = app.exteraless.links.LinkCleaner.cleanString(text);
                         } else if (!TextUtils.isEmpty(subject)) {
                             sendingText = subject;
                         }
@@ -2113,7 +2118,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                                         String path = data.getPath();
                                         if (path != null && path.length() > 1) {
                                             path = path.substring(1);
-                                            if (path.startsWith("$")) {
+                                            if (app.exteraless.plugins.PluginsController.isSettingsLink(path, data)) {
+                                                app.exteraless.plugins.PluginsController.openSettingsLink(data);
+                                            } else if (path.startsWith("$")) {
                                                 inputInvoiceSlug = path.substring(1);
                                             } else if (path.startsWith("invoice/")) {
                                                 inputInvoiceSlug = path.substring(path.indexOf('/') + 1);
@@ -3109,6 +3116,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                         if (push_msg_id == 0) {
                             push_msg_id = intent.getIntExtra("message_id", 0);
                         }
+                        dismissPlayerSheets();
                         if (storyId != -1) {
                             NotificationCenter.getInstance(intentAccount[0]).postNotificationName(NotificationCenter.closeChats);
                             push_chat_id = chatId;
@@ -3271,7 +3279,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             } else if (showPlayer) {
                 if (!actionBarLayout.getFragmentStack().isEmpty()) {
                     BaseFragment fragment = actionBarLayout.getFragmentStack().get(0);
-                    fragment.showDialog(new AudioPlayerAlert(this, null));
+                    fragment.showDialog(app.exteraless.player.Md3Player.create(this, null));
                 }
                 pushOpened = false;
             } else if (showLocations) {
@@ -6866,6 +6874,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             return;
         }
         super.onActivityResult(requestCode, resultCode, data);
+        if (GramWalletStorageAuth.onActivityResult(this, requestCode, resultCode)) return;
         if (requestCode == SCREEN_CAPTURE_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK) {
                 VoIPService service = VoIPService.getSharedInstance();
@@ -7025,6 +7034,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     @Override
     protected void onStop() {
         super.onStop();
+        GramWalletStorageAuth.onActivityStopped(this);
         isStarted = false;
         pipActivityHandler.onStop();
         Browser.unbindCustomTabsService(this);
@@ -7087,6 +7097,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onDestroy() {
         app.exteraless.icons.picker.IconPickerController.onDestroy();
         app.exteraless.plugins.PluginsController.getInstance().executeOnAppEvent(app.exteraless.plugins.PluginsConstants.EVENT_APP_STOP);
+        GramWalletStorageAuth.onActivityDestroyed(this);
         isActive = false;
         activeInstanceCount--;
         unregisterReceiver(batteryReceiver);
@@ -7934,6 +7945,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 ForumUtilities.switchAllFragmentsInStackToForum(chatId, actionBarLayout);
             }
         } else if (id == NotificationCenter.tlSchemeParseException) {
+            if (BuildVars.DEBUG_PRIVATE_VERSION) {
+                return;
+            }
             if (tlErrorAlertDialog == null) {
                 final TLParseException error = (TLParseException) args[0];
 
@@ -8696,6 +8710,17 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 return true;
             }
         }
+        if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP || event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            BaseFragment baseFragment = getLastFragment();
+            if (baseFragment instanceof ChatActivity) {
+                ChatActivity chatActivity = (ChatActivity) baseFragment;
+                InstantCameraView instantCameraView = chatActivity.getInstantCameraView();
+                if (instantCameraView != null && instantCameraView.isCameraReady()) {
+                    instantCameraView.onKeyDown(keyCode, event);
+                    return true;
+                }
+            }
+        }
         if (event.getAction() == KeyEvent.ACTION_DOWN && (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP || event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN)) {
             if (VoIPService.getSharedInstance() != null) {
                 if (Build.VERSION.SDK_INT >= 32) {
@@ -9341,6 +9366,15 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 lastFragment.getOrCreateStoryViewer().instantClose();
                 lastFragment.getOrCreateStoryViewer().open(this, null, peerIds, 0, null, null, placeProvider, false);
             }
+        }
+    }
+
+    private static void dismissPlayerSheets() {
+        if (app.exteraless.player.PlayerSheet.instance != null) {
+            app.exteraless.player.PlayerSheet.instance.dismissImmediately();
+        }
+        if (AudioPlayerAlert.instance != null) {
+            AudioPlayerAlert.instance.dismiss();
         }
     }
 

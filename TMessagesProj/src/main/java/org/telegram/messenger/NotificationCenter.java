@@ -287,6 +287,8 @@ public class NotificationCenter {
     public static final int joinedGroup = totalEvents++;
     public static final int loadedAiComposeTones = totalEvents++;
     public static final int updatedChatbot = totalEvents++;
+    public static final int walletUpdate = totalEvents++;
+    public static final int walletTransactionsUpdate = totalEvents++;
 
     //global
     public static final int activeAccountChanged = totalEvents++;
@@ -315,6 +317,7 @@ public class NotificationCenter {
     public static final int didSetNewWallpapper = totalEvents++;
     public static final int proxySettingsChanged = totalEvents++;
     public static final int proxyCheckDone = totalEvents++;
+    public static final int proxyPingUpdated = totalEvents++;
     public static final int proxyChangedByRotation = totalEvents++;
     public static final int liveLocationsChanged = totalEvents++;
     public static final int newLocationAvailable = totalEvents++;
@@ -408,6 +411,7 @@ public class NotificationCenter {
     public static final int pillStackLayoutChanged = totalEvents++;
     /** Отложенное обновление приложения появилось или скрыто: перерисовать баннер в списке чатов. */
     public static final int appUpdateBannerChanged = totalEvents++;
+    public static final int audioInfoLoaded = totalEvents++;
 
     private final SparseArray<ArrayList<NotificationCenterDelegate>> observers = new SparseArray<>();
     private final SparseArray<ArrayList<NotificationCenterDelegate>> removeAfterBroadcast = new SparseArray<>();
@@ -446,7 +450,7 @@ public class NotificationCenter {
 
     private int currentAccount;
     private int currentHeavyOperationFlags;
-    private static volatile NotificationCenter[] Instance = new NotificationCenter[UserConfig.MAX_ACCOUNT_COUNT];
+    private static volatile NotificationCenter[] Instance = new NotificationCenter[UserConfig.MAX_INSTANCE_COUNT];
     private static volatile NotificationCenter globalInstance;
 
     @UiThread
@@ -605,6 +609,10 @@ public class NotificationCenter {
     }
 
     public void postNotificationName(final int id, Object... args) {
+        if ((id == updateInterfaces || id == startAllHeavyOperations || id == stopAllHeavyOperations)
+                && args != null && args.length > 0 && args[0] instanceof Number && !(args[0] instanceof Integer)) {
+            args[0] = ((Number) args[0]).intValue();
+        }
         boolean allowDuringAnimation = id == startAllHeavyOperations || id == stopAllHeavyOperations || id == didReplacedPhotoInMemCache || id == closeChats || id == invalidateMotionBackground || id == needCheckSystemBarColors || id == messageReceivedByServer2;
         ArrayList<Integer> expiredIndices = null;
         if (!allowDuringAnimation && allowedNotifications.size() > 0) {

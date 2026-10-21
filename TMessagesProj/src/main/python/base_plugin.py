@@ -289,9 +289,54 @@ class HookParam:
         return f"HookParam({object.__getattribute__(self, '_param')!r})"
 
 
-def dispatch_hook(handler, attr, param):
-    """Entry point for the Java hook bridge: calls *handler.attr(param)*."""
-    return getattr(handler, attr)(HookParam(param))
+_param_accessors = None
+
+
+def _install_param_accessors():
+    try:
+        from java import jclass
+        cls = jclass("de.robv.android.xposed.XC_MethodHook$MethodHookParam")
+    except Exception:
+        return False
+    if not isinstance(cls, type) or "_chaquopy_j_klass" not in cls.__dict__:
+        return False
+    type.__setattr__(cls, "result", property(lambda p: p.getResult(),
+                                             lambda p, value: p.setResult(value)))
+    type.__setattr__(cls, "throwable", property(lambda p: p.getThrowable(),
+                                                lambda p, value: p.setThrowable(value)))
+    type.__setattr__(cls, "java", property(lambda p: p))
+    return True
+
+
+def _direct_params():
+    global _param_accessors
+    if _param_accessors is None:
+        _param_accessors = _install_param_accessors()
+    return _param_accessors
+
+
+def bind_hook(handler, attr, stat_id=-1):
+    fn = getattr(handler, attr, None)
+    if fn is None or not callable(fn):
+        return None
+    base = getattr(MethodHook, attr, None)
+    if base is not None and getattr(fn, "__func__", None) is base:
+        return None
+    profile = _internal("hook_profile")
+    if not _direct_params():
+        handler_fn = fn
+        fn = lambda param: handler_fn(HookParam(param))
+
+    def call(param):
+        if not profile.active:
+            return fn(param)
+        start = profile.clock()
+        try:
+            return fn(param)
+        finally:
+            profile.record(stat_id, profile.clock() - start)
+
+    return call
 
 
 def _filter_value(value):
@@ -478,6 +523,9 @@ def _serialize_hook_filters(before, after) -> str:
                       ensure_ascii=False)
 
 
+_NO_CLIENT_OVERRIDE = object()
+
+
 # BasePlugin
 
 class BasePlugin:
@@ -491,6 +539,7 @@ class BasePlugin:
     #: это поле у exteraGram, и без него у них падает всё, что обращается к
     #: контроллеру по id (обновление экрана настроек, поиск себя в реестре).
     id: Optional[str] = None
+    enabled: bool = True
 
     # ---- lifecycle (override in the subclass) ----
 
@@ -592,9 +641,11 @@ class BasePlugin:
         if raw is None:
             return default
         try:
-            return json.loads(raw)
+            value = json.loads(raw)
         except (ValueError, TypeError):
             return default
+        from plugin_settings import coerce_value
+        return coerce_value(value, default)
 
     def set_setting(self, key: str, value, reload_settings: bool = False):
         if not self._exteraless_bridge_available():
@@ -613,8 +664,8 @@ class BasePlugin:
             return {}
         try:
             raw = PythonBridge.exportSettings(self._exteraless_plugin_id)
-            data = json.loads(raw) if raw else {}
-            return data if isinstance(data, dict) else {}
+            from plugin_settings import decode_values
+            return decode_values(raw) if raw else {}
         except Exception as e:
             self.log(f"export_settings() failed: {e}")
             return {}
@@ -623,8 +674,9 @@ class BasePlugin:
         if not self._exteraless_bridge_available():
             return
         try:
+            from plugin_settings import encode_values
             PythonBridge.importSettings(self._exteraless_plugin_id,
-                                        json.dumps(dict(settings), ensure_ascii=False),
+                                        json.dumps(encode_values(settings), ensure_ascii=False),
                                         bool(reload_settings))
         except Exception as e:
             self.log(f"import_settings() failed: {e}")
@@ -740,8 +792,19 @@ class BasePlugin:
         (falling back to the UI-selected account outside hooks);
         ``self.client(account)`` returns an AccountClient bound to *account*.
         """
+        override = self.__dict__.get("_exteraless_client_override", _NO_CLIENT_OVERRIDE)
+        if override is not _NO_CLIENT_OVERRIDE:
+            return override
         import client_utils
         return client_utils.AccountClient(None)
+
+    @client.setter
+    def client(self, value):
+        self.__dict__["_exteraless_client_override"] = value
+
+    @client.deleter
+    def client(self):
+        self.__dict__.pop("_exteraless_client_override", None)
 
     # ---- Xposed-style method hooking ----
 
@@ -831,7 +894,8 @@ class BasePlugin:
         if isinstance(method, (tuple, list)) and len(method) == 2:
             clazz = self._exteraless_resolve_class(method[0])
             name = str(method[1])
-            matches = [m for m in clazz.getDeclaredMethods()
+            from hook_utils import _as_class
+            matches = [m for m in _as_class(clazz).getDeclaredMethods()
                        if str(m.getName()) == name]
             if not matches:
                 self.log(f"hook_method: no declared method {name!r} on {clazz}")

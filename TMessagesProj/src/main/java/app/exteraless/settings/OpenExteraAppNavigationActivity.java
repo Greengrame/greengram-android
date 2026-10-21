@@ -16,6 +16,7 @@ import app.exteraless.appearance.AvatarCornersSeekBar;
 import app.exteraless.drawer.MainMenuHelper;
 import app.exteraless.drawer.MainMenuItem;
 import app.exteraless.drawer.MainMenuLayout;
+import app.exteraless.settings.utils.SettingsRowMenu;
 import app.exteraless.utils.UtilsConfig;
 
 import org.telegram.messenger.AndroidUtilities;
@@ -292,13 +293,8 @@ public class OpenExteraAppNavigationActivity extends BaseFragment {
         if (key == null) {
             return false;
         }
-        showDialog(new AlertDialog.Builder(getContext(), getResourceProvider())
-                .setItems(new CharSequence[]{getString(R.string.CopyLink)}, (dialog, which) -> {
-                    AndroidUtilities.addToClipboard(String.format(Locale.US, "https://%s/%s?r=%s",
-                            getMessagesController().linkPrefix, SettingsHelper.linkPathFor("exteraless_navigation"), key));
-                    BulletinFactory.of(this).createCopyLinkBulletin().show();
-                })
-                .create());
+        SettingsRowMenu.show(this, view, String.format(Locale.US, "https://%s/%s?r=%s",
+                getMessagesController().linkPrefix, SettingsHelper.linkPathFor("exteraless_navigation"), key));
         return true;
     }
 

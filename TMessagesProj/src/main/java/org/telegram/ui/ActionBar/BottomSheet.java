@@ -1231,6 +1231,7 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
 
     public BottomSheet(Context context, boolean needFocus, EdgeToEdge edgeToEdge, Theme.ResourcesProvider resourcesProvider) {
         super(context, R.style.TransparentDialog);
+        org.telegram.ui.Wallet.WalletPluginFreeze.enterIfWallet(this);
         this.resourcesProvider = resourcesProvider;
         if (BuildConfig.DEBUG) {
             LeakDetector.getInstance().add(this);
@@ -2048,9 +2049,22 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
     private android.window.OnBackInvokedDispatcher onBackInvokedDispatcher;
     private boolean isBackCallbackRegistered;
     protected boolean predictiveBackAnimationInProgress;
+    private boolean customBackAnimation;
 
     /** Приоритет колбэка: выше системного, чтобы шторка перехватывала жест первой. */
     private static final int BACK_CALLBACK_PRIORITY = 1_000_000;
+
+    protected boolean onCustomBackStarted(int swipeDirection) {
+        return false;
+    }
+
+    protected void onCustomBackProgressed(float progress) {
+
+    }
+
+    protected void onCustomBackCancelled() {
+
+    }
 
     @android.annotation.TargetApi(34)
     private void registerBackCallback() {
@@ -2081,6 +2095,8 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
                 if (container != null) {
                     container.resetTouch();
                 }
+                final int edge = event.getSwipeEdge();
+                customBackAnimation = !dismissed && onCustomBackStarted(edge == android.window.BackEvent.EDGE_LEFT ? 1 : edge == android.window.BackEvent.EDGE_RIGHT ? -1 : 0);
             }
 
             @Override
@@ -2089,6 +2105,10 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
                     return;
                 }
                 final float progress = event.getProgress();
+                if (customBackAnimation) {
+                    onCustomBackProgressed(progress);
+                    return;
+                }
                 containerView.setTranslationY(containerView.getMeasuredHeight() * 0.15f * progress);
                 if (backDrawable != null) {
                     backDrawable.setAlpha((int) (dimBehindAlpha * (1.0f - progress)));
@@ -2102,6 +2122,11 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
                     return;
                 }
                 container.resetTouch();
+                if (customBackAnimation) {
+                    customBackAnimation = false;
+                    onCustomBackCancelled();
+                    return;
+                }
                 container.cancelCurrentAnimation();
                 final AnimatorSet set = new AnimatorSet();
                 set.playTogether(ObjectAnimator.ofFloat(containerView, View.TRANSLATION_Y, 0.0f));
@@ -2122,6 +2147,7 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
                     return;
                 }
                 predictiveBackAnimationInProgress = false;
+                customBackAnimation = false;
                 if (container != null) {
                     container.resetTouch();
                 }
@@ -2337,6 +2363,7 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
     }
 
     public void dismissInternal() {
+        org.telegram.ui.Wallet.WalletPluginFreeze.leave(this);
         if (attachedFragment != null) {
             attachedFragment.removeSheet(this);
             AndroidUtilities.removeFromParent(container);

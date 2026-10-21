@@ -59,6 +59,10 @@ public final class XposedHooks {
         return ensureInitialized();
     }
 
+    public static boolean isReady() {
+        return initAttempted && initOk;
+    }
+
     public static boolean isNativeHooksBroken() {
         SharedPreferences preferences = PluginsController.getInstance().getPreferences();
         return preferences != null
@@ -147,6 +151,28 @@ public final class XposedHooks {
 
     // ---------- регистрация хуков ----------
 
+    private static final String[] DENIED_HOOK_PREFIXES = {
+            "org.telegram.ui.Wallet.",
+            "org.telegram.tgnet.tl.TL_wallet",
+            "org.telegram.tgnet.tl.TL_toncenter",
+            "java.security.KeyStore",
+            "android.security.keystore",
+    };
+
+    private static boolean deniedTarget(String pluginId, Class<?> clazz) {
+        if (clazz == null) {
+            return false;
+        }
+        final String name = clazz.getName();
+        for (String prefix : DENIED_HOOK_PREFIXES) {
+            if (name.startsWith(prefix)) {
+                FileLog.e("XposedHooks: plugin " + pluginId + " may not hook " + name);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static String hookMethod(String pluginId, Object member, PyObject handler,
                                     int priority, String filtersJson) {
         if (!ensureInitialized()) {
@@ -155,6 +181,9 @@ public final class XposedHooks {
         if (pluginId == null || handler == null || !(member instanceof Member)) {
             FileLog.e("XposedHooks.hookMethod: bad arguments (pluginId=" + pluginId
                     + ", member=" + member + ", handler=" + handler + ")");
+            return null;
+        }
+        if (deniedTarget(pluginId, ((Member) member).getDeclaringClass())) {
             return null;
         }
         try {
@@ -177,6 +206,9 @@ public final class XposedHooks {
                 || methodName == null || methodName.isEmpty()) {
             FileLog.e("XposedHooks.hookAllMethods: bad arguments (pluginId=" + pluginId
                     + ", clazz=" + clazz + ", methodName=" + methodName + ")");
+            return "[]";
+        }
+        if (deniedTarget(pluginId, (Class<?>) clazz)) {
             return "[]";
         }
         try {
@@ -223,6 +255,9 @@ public final class XposedHooks {
                     + ", clazz=" + clazz + ")");
             return "[]";
         }
+        if (deniedTarget(pluginId, (Class<?>) clazz)) {
+            return "[]";
+        }
         try {
             XC_MethodHook hook = createHook(pluginId, handler, priority, filtersJson);
             HookGate.prewarmAllConstructors((Class<?>) clazz);
@@ -249,6 +284,12 @@ public final class XposedHooks {
     }
 
     private static String register(String pluginId, XC_MethodHook.Unhook unhook) {
+        Object callback = unhook.getCallback();
+        if (callback instanceof PyMethodHook) {
+            ((PyMethodHook) callback).addTarget(unhook.getHookedMethod());
+        } else if (callback instanceof PyMethodReplacement) {
+            ((PyMethodReplacement) callback).addTarget(unhook.getHookedMethod());
+        }
         String id = UUID.randomUUID().toString();
         UNHOOKS.put(id, unhook);
         HOOK_OWNERS.put(id, pluginId);
@@ -400,10 +441,19 @@ public final class XposedHooks {
     private static volatile boolean hookBridgeResolved;
 
     /**
-     * base_plugin.dispatch_hook оборачивает MethodHookParam так, чтобы из Python
-     * работали обе формы: param.getResult()/setResult() и param.result. Если
-     * модуль почему-то недоступен, зовём обработчик напрямую — как раньше.
+     * base_plugin.bind_hook один раз связывает метод обработчика с обёрткой, которая
+     * отдаёт в Python MethodHookParam так, чтобы работали обе формы:
+     * param.getResult()/setResult() и param.result. Пустой метод MethodHook она не
+     * связывает вовсе. Если модуль почему-то недоступен, зовём метод обработчика напрямую.
      */
+    static PyObject bindHook(PyObject handler, String attr, int statId) {
+        PyObject bridge = hookBridge();
+        if (bridge == null) {
+            return handler.containsKey(attr) ? handler.get(attr) : null;
+        }
+        return bridge.callAttr("bind_hook", handler, attr, statId);
+    }
+
     private static PyObject hookBridge() {
         if (!hookBridgeResolved) {
             synchronized (XposedHooks.class) {
@@ -442,9 +492,17 @@ public final class XposedHooks {
      * захуканный метод приложения. Обёрнуто в notePluginEnter/notePluginExit
      * (атрибуция падений в watchdog).
      */
-    static PyResult callPython(String pluginId, PyObject handler, String attr,
-                               XC_MethodHook.MethodHookParam param) {
+    static PyResult callPython(String pluginId, PyObject callable,
+                               XC_MethodHook.MethodHookParam param, HookStats stats) {
+        if (org.telegram.ui.Wallet.WalletPluginFreeze.isFrozen()) {
+            return PyResult.ERROR;
+        }
+        app.exteraless.plugins.PythonThreadState.onCall();
         PluginsWatchdog watchdog = watchdog();
+        final boolean profiling = HookStats.enabled && stats != null;
+        final boolean main = profiling && HookStats.isMainThread();
+        final String blocker = main ? HookStats.findBlocker(watchdog) : null;
+        final long start = profiling ? System.nanoTime() : 0L;
         boolean entered = false;
         String previousRuntime = app.exteraless.plugins.PluginRuntime.enter(pluginId);
         try {
@@ -452,10 +510,7 @@ public final class XposedHooks {
                 watchdog.notePluginEnter(pluginId);
                 entered = true;
             }
-            PyObject bridge = hookBridge();
-            return PyResult.of(bridge != null
-                    ? bridge.callAttr("dispatch_hook", handler, attr, param)
-                    : handler.callAttr(attr, param));
+            return PyResult.of(callable.call(param));
         } catch (Throwable t) {
             reportError(pluginId, t);
             return PyResult.ERROR;
@@ -466,6 +521,9 @@ public final class XposedHooks {
                     watchdog.notePluginExit(pluginId);
                 } catch (Throwable ignored) {
                 }
+            }
+            if (profiling) {
+                stats.record(System.nanoTime() - start, main, blocker);
             }
         }
     }

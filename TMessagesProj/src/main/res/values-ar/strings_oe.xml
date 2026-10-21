@@ -18,6 +18,7 @@
     <string name="QrWifiPasswordCopied">تم نسخ كلمة المرور</string>
     <string name="QrWifiUnknownNetwork">اسم الشبكة غير موجود في الرمز</string>
     <string name="QrLoginHint">هذا الرمز يسجّل الدخول إلى حساب. استخدم الإعدادات ← الأجهزة ← ربط جهاز سطح المكتب، فهذه الشاشة تتحقق من الرمز وتحمي حسابك.</string>
+    <string name="QrLoginConfirm">هذا الرمز يسجّل دخول جهاز جديد إلى حسابك. اسمح بذلك فقط إذا كنت تسجّل الدخول بنفسك على جهازك.</string>
     <string name="OpenExteraPreferences">تفضيلات exteraless</string>
     <string name="OpenExteraDesignSection">التصميم</string>
     <string name="OpenExteraDesigner">الأيقونات والتصميم</string>
@@ -38,4 +39,16 @@
     <string name="MainTabsHideCallsSettings">إخفاء تبويب المكالمات</string>
     <string name="MainTabsHideProfile">إخفاء تبويب الملف الشخصي</string>
     <string name="OEBotWebViewUpdate">تحديث WebView</string>
+    <string name="OEProfilerStart">تشغيل محلل التقطّع</string>
+    <string name="OEProfilerStop">إيقاف المحلل ومشاركة التقرير</string>
+    <string name="OEProfilerStarted">المحلل يعمل. استخدم التطبيق كالمعتاد ثم أوقفه من هنا.</string>
+    <string name="OEProfilerShareLast">مشاركة آخر تقرير للمحلل</string>
+    <string name="OEProfileIdDate">تاريخ التسجيل والانضمام</string>
+    <string name="OEProfileAccountCreated">انضم **%1$s** إلى تيليجرام %2$s</string>
+    <string name="OEProfileJoinedChat">انضممت إلى **%1$s** في %2$s</string>
+    <string name="OEProfileJoinedChannel">اشتركت في **%1$s** في %2$s</string>
+    <string name="OEProfileChatCreated">أُنشئ **%1$s** في %2$s</string>
+    <string name="OEProfileJoinDateUnknown">تاريخ الانضمام غير متاح</string>
+    <string name="AppIconsSelect">اختيار</string>
+    <string name="AppIconsKeep">الإبقاء على هذه</string>
 </resources>

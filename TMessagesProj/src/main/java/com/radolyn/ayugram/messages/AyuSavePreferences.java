@@ -28,8 +28,10 @@ import xyz.nextalone.nagram.NaConfig;
 
 public class AyuSavePreferences {
     public static final String saveExclusionPrefix = "saveDeletedExclusion_";
+    public static final String saveEditedExclusionPrefix = "saveEditedExclusion_";
     public static ConcurrentHashMap<Long, Boolean> saveDeletedExclusions = new ConcurrentHashMap<>();
-    public static boolean isSaveDeletedExclusionsLoaded = false;
+    public static ConcurrentHashMap<Long, Boolean> saveEditedExclusions = new ConcurrentHashMap<>();
+    public static boolean isSaveExclusionsLoaded = false;
     private final TLRPC.Message message;
     private final int accountId;
     private final long userId;
@@ -80,32 +82,33 @@ public class AyuSavePreferences {
             return false;
         }
 
-        if (getSaveDeletedExclusion(dialogId)) {
+        if (isSaveDeletedSkipped(dialogId, userId)) {
             return false;
         }
 
-        if (!saveDeletedForDialogKind(accountId, dialogId)) {
+        if (!saveDeletedForDialogKind(accountId, dialogId) || !saveInDialogFolder(accountId, dialogId)) {
             return false;
         }
 
         if (userId != 0) {
-            if (getSaveDeletedExclusion(userId)) {
-                return false;
-            }
             var fromUser = MessagesController.getInstance(accountId).getUser(userId);
             if (fromUser != null) {
                 return !fromUser.bot || NaConfig.INSTANCE.getSaveDeletedMessageForBotUser().Bool();
             } else {
                 final MessagesStorage messagesStorage = MessagesStorage.getInstance(accountId);
-                final CountDownLatch countDownLatch = new CountDownLatch(1);
                 final TLRPC.User[] user = {null};
-                messagesStorage.getStorageQueue().postRunnable(() -> {
+                if (Thread.currentThread() == messagesStorage.getStorageQueue()) {
                     user[0] = messagesStorage.getUser(userId);
-                    countDownLatch.countDown();
-                });
-                try {
-                    countDownLatch.await();
-                } catch (Exception ignored) {
+                } else {
+                    final CountDownLatch countDownLatch = new CountDownLatch(1);
+                    messagesStorage.getStorageQueue().postRunnable(() -> {
+                        user[0] = messagesStorage.getUser(userId);
+                        countDownLatch.countDown();
+                    });
+                    try {
+                        countDownLatch.await();
+                    } catch (Exception ignored) {
+                    }
                 }
                 if (user[0] != null) {
                     return !user[0].bot || NaConfig.INSTANCE.getSaveDeletedMessageForBotUser().Bool();
@@ -134,17 +137,52 @@ public class AyuSavePreferences {
                 : NaConfig.INSTANCE.getSaveDeletedInGroups().Bool();
     }
 
+    public static boolean saveInDialogFolder(int accountId, long dialogId) {
+        if (NaConfig.INSTANCE.getSaveInArchivedChats().Bool()) {
+            return true;
+        }
+        try {
+            TLRPC.Dialog dialog = MessagesController.getInstance(accountId).dialogs_dict.get(dialogId);
+            return dialog == null || dialog.folder_id != 1;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
     public static void setSaveDeletedExclusion(long chatId, boolean value) {
         saveDeletedExclusions.put(Math.abs(chatId), value);
         NekoConfig.getPreferences().edit().putBoolean(saveExclusionPrefix + Math.abs(chatId), value).apply();
     }
 
     public static boolean getSaveDeletedExclusion(long chatId) {
-        if (isSaveDeletedExclusionsLoaded) {
+        if (isSaveExclusionsLoaded) {
             return Boolean.TRUE.equals(saveDeletedExclusions.getOrDefault(Math.abs(chatId), false));
         } else {
             return saveDeletedExclusions.computeIfAbsent(Math.abs(chatId), k -> NekoConfig.getPreferences().getBoolean(saveExclusionPrefix + Math.abs(chatId), false));
         }
+    }
+
+    public static boolean isSaveDeletedSkipped(long dialogId, long userId) {
+        boolean marked = getSaveDeletedExclusion(dialogId) || userId != 0 && getSaveDeletedExclusion(userId);
+        return NaConfig.INSTANCE.getSaveDeletedExceptionsMode().Int() == 1 ? !marked : marked;
+    }
+
+    public static void setSaveEditedExclusion(long chatId, boolean value) {
+        saveEditedExclusions.put(Math.abs(chatId), value);
+        NekoConfig.getPreferences().edit().putBoolean(saveEditedExclusionPrefix + Math.abs(chatId), value).apply();
+    }
+
+    public static boolean getSaveEditedExclusion(long chatId) {
+        if (isSaveExclusionsLoaded) {
+            return Boolean.TRUE.equals(saveEditedExclusions.getOrDefault(Math.abs(chatId), false));
+        } else {
+            return saveEditedExclusions.computeIfAbsent(Math.abs(chatId), k -> NekoConfig.getPreferences().getBoolean(saveEditedExclusionPrefix + Math.abs(chatId), false));
+        }
+    }
+
+    public static boolean saveEditedMessageFor(long dialogId, long userId) {
+        boolean marked = getSaveEditedExclusion(dialogId) || userId != 0 && getSaveEditedExclusion(userId);
+        return NaConfig.INSTANCE.getSaveEditedExceptionsMode().Int() == 1 ? marked : !marked;
     }
 
     public static void loadAllExclusions() {
@@ -159,9 +197,17 @@ public class AyuSavePreferences {
                         }
                     } catch (Exception ignored) {
                     }
+                } else if (entry.getKey().startsWith(saveEditedExclusionPrefix)) {
+                    try {
+                        long chatId = Long.parseLong(entry.getKey().substring(saveEditedExclusionPrefix.length()));
+                        if (entry.getValue() instanceof Boolean) {
+                            saveEditedExclusions.put(chatId, (Boolean) entry.getValue());
+                        }
+                    } catch (Exception ignored) {
+                    }
                 }
             }
-            isSaveDeletedExclusionsLoaded = true;
+            isSaveExclusionsLoaded = true;
         });
     }
 

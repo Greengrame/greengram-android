@@ -275,6 +275,17 @@ public abstract class ViewPagerActivity extends BaseFragment {
     }
 
     @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        for (int a = 0, N = fragmentsArr.size(); a < N; a++) {
+            final FragmentState state = fragmentsArr.valueAt(a);
+            if (state.fragment.getFragmentView() != null && state.fragment.getParentActivity() != null) {
+                state.fragment.onConfigurationChanged(newConfig);
+            }
+        }
+    }
+
+    @Override
     public void onTransitionAnimationProgress(boolean isOpen, float progress) {
         super.onTransitionAnimationProgress(isOpen, progress);
         visibilityByParent = isOpen ? progress : (1f - progress);
@@ -496,6 +507,14 @@ public abstract class ViewPagerActivity extends BaseFragment {
         @Override
         protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
             super.onLayout(changed, left, top, right, bottom);
+        }
+
+        @Override
+        public void onViewRemoved(View child) {
+            super.onViewRemoved(child);
+            if (child instanceof ViewPagerFragmentRootLayout && !child.isAttachedToWindow()) {
+                ((ViewPagerFragmentRootLayout) child).removeAllViews();
+            }
         }
     }
 

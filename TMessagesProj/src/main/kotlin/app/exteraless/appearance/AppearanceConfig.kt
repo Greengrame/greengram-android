@@ -253,6 +253,127 @@ object AppearanceConfig {
         return newNavigationBarStyle.Bool()
     }
 
+    @JvmField
+    val md3Player =
+        addConfig("OEAppearanceMd3Player", ConfigItem.configTypeBool, true)
+
+    @JvmStatic
+    fun md3Player(): Boolean {
+        ensureLoaded()
+        return md3Player.Bool()
+    }
+
+    @JvmField
+    val md3MiniPlayer =
+        addConfig("OEAppearanceMd3MiniPlayer", ConfigItem.configTypeBool, true)
+
+    @JvmStatic
+    fun md3MiniPlayer(): Boolean {
+        ensureLoaded()
+        return md3MiniPlayer.Bool()
+    }
+
+    @JvmField
+    val lrclibAllowed =
+        addConfig("OEPlayerLrclibAllowed", ConfigItem.configTypeBool, false)
+
+    @JvmField
+    val playerCoverStyle = addConfig("OEPlayerCoverStyle", ConfigItem.configTypeInt, 0)
+
+    @JvmField
+    val playerCoverSize = addConfig("OEPlayerCoverSize", ConfigItem.configTypeInt, 100)
+
+    @JvmField
+    val playerCoverRadius = addConfig("OEPlayerCoverRadius", ConfigItem.configTypeInt, 28)
+
+    @JvmField
+    val playerDiscSpin = addConfig("OEPlayerDiscSpin", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerCoverSwipe = addConfig("OEPlayerCoverSwipe", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerTitleAlign = addConfig("OEPlayerTitleAlign", ConfigItem.configTypeInt, 0)
+
+    @JvmField
+    val playerTitleSize = addConfig("OEPlayerTitleSize", ConfigItem.configTypeInt, 1)
+
+    @JvmField
+    val playerTitleAbove = addConfig("OEPlayerTitleAbove", ConfigItem.configTypeBool, false)
+
+    @JvmField
+    val playerOrder = addConfig("OEPlayerOrder", ConfigItem.configTypeString, "")
+
+    @JvmField
+    val playerShowActions = addConfig("OEPlayerShowActions", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerShowModes = addConfig("OEPlayerShowModes", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerShowLike = addConfig("OEPlayerShowLike", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerShowSource = addConfig("OEPlayerShowSource", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerWavy = addConfig("OEPlayerWavy", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerControlsSize = addConfig("OEPlayerControlsSize", ConfigItem.configTypeInt, 1)
+
+    @JvmField
+    val playerColors = addConfig("OEPlayerColors", ConfigItem.configTypeInt, 0)
+
+    @JvmField
+    val playerBackground = addConfig("OEPlayerBackground", ConfigItem.configTypeInt, 0)
+
+    @JvmField
+    val playerCoverExtend = addConfig("OEPlayerCoverExtend", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerMiniCover = addConfig("OEPlayerMiniCover", ConfigItem.configTypeInt, 0)
+
+    @JvmField
+    val playerMiniShape = addConfig("OEPlayerMiniShape", ConfigItem.configTypeInt, 0)
+
+    @JvmField
+    val playerMiniProgress = addConfig("OEPlayerMiniProgress", ConfigItem.configTypeInt, 0)
+
+    @JvmField
+    val playerMiniColors = addConfig("OEPlayerMiniColors", ConfigItem.configTypeInt, 1)
+
+    @JvmField
+    val playerMiniCompact = addConfig("OEPlayerMiniCompact", ConfigItem.configTypeBool, false)
+
+    @JvmField
+    val playerMiniArtist = addConfig("OEPlayerMiniArtist", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerMiniPrevious = addConfig("OEPlayerMiniPrevious", ConfigItem.configTypeBool, false)
+
+    @JvmField
+    val playerMiniNext = addConfig("OEPlayerMiniNext", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerMiniClose = addConfig("OEPlayerMiniClose", ConfigItem.configTypeBool, true)
+
+    @JvmField
+    val playerMiniTop = addConfig("OEPlayerMiniTop", ConfigItem.configTypeBool, false)
+
+    @JvmStatic
+    fun playerStyleItems(): List<ConfigItem> {
+        ensureLoaded()
+        return listOf(
+            playerCoverStyle, playerCoverSize, playerCoverRadius, playerDiscSpin, playerCoverSwipe,
+            playerTitleAlign, playerTitleSize, playerTitleAbove, playerOrder, playerShowActions,
+            playerShowModes, playerShowLike, playerShowSource, playerWavy, playerControlsSize,
+            playerColors, playerBackground, playerCoverExtend, playerMiniCover, playerMiniShape, playerMiniProgress,
+            playerMiniColors, playerMiniCompact, playerMiniArtist, playerMiniPrevious, playerMiniNext,
+            playerMiniClose
+        )
+    }
+
     /** Широкая нижняя панель как в Telegram iOS. Уступает M3-панели, если включены обе. */
     @JvmField
     val iosNavigationBarStyle =
@@ -609,6 +730,7 @@ object AppearanceConfig {
         } else if (!legacyHidden && dividerStyle.Int() == DIVIDER_HIDDEN) {
             NaConfig.hideDividers.setConfigBool(true)
         }
+        migrateLegacyTitleName()
         migrateCustomTitle()
         migrateCenterTitle()
         migrateIosChatHeader()
@@ -650,6 +772,16 @@ object AppearanceConfig {
         }
         if (chat != snow) {
             NaConfig.chatDecoration.setConfigInt(snow)
+        }
+    }
+
+    private const val LEGACY_DEFAULT_TITLE = "Nagram X"
+
+    private fun migrateLegacyTitleName() {
+        if (NaConfig.customTitle.String() != LEGACY_DEFAULT_TITLE) return
+        NaConfig.customTitle.setConfigString(NaConfig.customTitle.defaultValue as String)
+        if (titleText.Int() == TITLE_TEXT_CUSTOM) {
+            titleText.setConfigInt(0)
         }
     }
 
