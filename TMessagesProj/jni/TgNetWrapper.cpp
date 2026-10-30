@@ -262,6 +262,14 @@ void setUserPremium(JNIEnv *env, jclass c, jint instanceNum, bool premium) {
     ConnectionsManager::getInstance(instanceNum).setUserPremium(premium);
 }
 
+void setCustomBackend(JNIEnv *env, jclass c, jint instanceNum, jstring address, jint port, jstring publicKey, jlong fingerprint, jboolean reset) {
+    const char *addressStr = env->GetStringUTFChars(address, 0);
+    const char *keyStr = env->GetStringUTFChars(publicKey, 0);
+    ConnectionsManager::getInstance(instanceNum).setCustomBackend(std::string(addressStr), (uint32_t) port, std::string(keyStr), (uint64_t) fingerprint, reset);
+    env->ReleaseStringUTFChars(address, addressStr);
+    env->ReleaseStringUTFChars(publicKey, keyStr);
+}
+
 void switchBackend(JNIEnv *env, jclass c, jint instanceNum, jboolean restart) {
     ConnectionsManager::getInstance(instanceNum).switchBackend(restart);
 }
@@ -541,6 +549,7 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_cancelRequestsForGuid", "(II)V", (void *) cancelRequestsForGuid},
         {"native_bindRequestToGuid", "(III)V", (void *) bindRequestToGuid},
         {"native_applyDatacenterAddress", "(IILjava/lang/String;I)V", (void *) applyDatacenterAddress},
+        {"native_setCustomBackend", "(ILjava/lang/String;ILjava/lang/String;JZ)V", (void *) setCustomBackend},
         {"native_moveToDatacenter", "(II)V", (void *) moveToDatacenter},
         {"native_setProxySettings", "(ILjava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", (void *) setProxySettings},
         {"native_getConnectionState", "(I)I", (void *) getConnectionState},

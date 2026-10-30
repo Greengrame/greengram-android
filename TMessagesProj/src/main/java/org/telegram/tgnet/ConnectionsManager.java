@@ -32,6 +32,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.greengram.GreengramBackend;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BaseController;
 import org.telegram.messenger.BuildConfig;
@@ -787,6 +788,7 @@ public class ConnectionsManager extends BaseController {
         }
 
         pushConnectionEnabled = enablePushConnection;
+        GreengramBackend.applyStored(currentAccount);
         native_init(currentAccount, version, layer, apiId, deviceModel, systemVersion, appVersion, langCode, systemLangCode, configPath, logPath, regId, cFingerprint, installer, packageId, timezoneOffset, userId, userPremium, enablePushConnection, ApplicationLoader.isNetworkOnline(), ApplicationLoader.getCurrentNetworkType(), SharedConfig.measureDevicePerformanceClass());
         checkConnection();
     }
@@ -820,6 +822,12 @@ public class ConnectionsManager extends BaseController {
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             native_setSystemLangCode(a, langCode);
         }
+    }
+
+    // Points this account at a Greengram gateway. reset wipes the datacenter and its keys,
+    // which is what moving the account to another instance means.
+    public void setCustomBackend(GreengramBackend.Profile profile, boolean reset) {
+        native_setCustomBackend(currentAccount, profile.ip, profile.port, profile.publicKey, profile.fingerprint, reset);
     }
 
     public void switchBackend(boolean restart) {
@@ -977,6 +985,10 @@ public class ConnectionsManager extends BaseController {
     }
 
     public static void onRequestNewServerIpAndPort(final int second, final int currentAccount) {
+        // Greengram accounts only know their gateway; Telegram's DNS fallback would hand out Telegram DCs
+        if (true) {
+            return;
+        }
         Utilities.globalQueue.postRunnable(() -> {
             boolean networkOnline = ApplicationLoader.isNetworkOnline();
             Utilities.stageQueue.postRunnable(() -> {
@@ -1147,6 +1159,7 @@ public class ConnectionsManager extends BaseController {
     public static native void native_cancelRequestsForGuid(int currentAccount, int guid);
     public static native void native_bindRequestToGuid(int currentAccount, int requestToken, int guid);
     public static native void native_applyDatacenterAddress(int currentAccount, int datacenterId, String ipAddress, int port);
+    public static native void native_setCustomBackend(int currentAccount, String address, int port, String publicKey, long fingerprint, boolean reset);
     public static native int native_getConnectionState(int currentAccount);
     public static native void native_setUserId(int currentAccount, long id);
     public static native void native_init(int currentAccount, int version, int layer, int apiId, String deviceModel, String systemVersion, String appVersion, String langCode, String systemLangCode, String configPath, String logPath, String regId, String cFingerprint, String installer, String packageId, int timezoneOffset, long userId, boolean userPremium, boolean enablePushConnection, boolean hasNetwork, int networkType, int performanceClass);

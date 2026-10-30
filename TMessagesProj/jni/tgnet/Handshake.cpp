@@ -362,7 +362,14 @@ void Handshake::processHandshakeResponse_resPQ(TLObject *message, int64_t messag
                 }
             }
         } else {
-            if (serverPublicKeys.empty()) {
+            ConnectionsManager &owner = ConnectionsManager::getInstance(currentDatacenter->instanceNum);
+            if (serverPublicKeys.empty() && !owner.customAddress.empty()) {
+                // a Greengram account trusts its gateway's key and nothing else
+                if (!owner.customPublicKey.empty()) {
+                    serverPublicKeys.emplace_back(owner.customPublicKey);
+                    serverPublicKeysFingerprints.push_back(owner.customFingerprint);
+                }
+            } else if (serverPublicKeys.empty()) {
                 if (ConnectionsManager::getInstance(currentDatacenter->instanceNum).testBackend) {
                     serverPublicKeys.emplace_back("-----BEGIN RSA PUBLIC KEY-----\n"
                                                   "MIIBCgKCAQEAyMEdY1aR+sCR3ZSJrtztKTKqigvO/vBfqACJLZtS7QMgCGXJ6XIR\n"

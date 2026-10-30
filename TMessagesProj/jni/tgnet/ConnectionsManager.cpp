@@ -448,6 +448,7 @@ void ConnectionsManager::loadConfig() {
     }
 
     initDatacenters();
+    applyCustomBackend();
 
     if ((!datacenters.empty() && currentDatacenterId == 0) || pushSessionId == 0) {
         if (pushSessionId == 0) {
@@ -1848,6 +1849,14 @@ uint8_t ConnectionsManager::getIpStratagy() {
 
 void ConnectionsManager::initDatacenters() {
     Datacenter *datacenter;
+    if (!customAddress.empty()) {
+        if (datacenters.find(CUSTOM_DATACENTER_ID) == datacenters.end()) {
+            datacenter = new Datacenter(instanceNum, CUSTOM_DATACENTER_ID);
+            datacenter->addAddressAndPort(customAddress, customPort, 0, "");
+            datacenters[CUSTOM_DATACENTER_ID] = datacenter;
+        }
+        return;
+    }
     if (!testBackend) {
         if (datacenters.find(1) == datacenters.end()) {
             datacenter = new Datacenter(instanceNum, 1);
@@ -2071,6 +2080,61 @@ void ConnectionsManager::setUserId(int64_t userId) {
             waitingLoginRequests.clear();
         }
     });
+}
+
+// Before init this only records the backend; loadConfig applies it. After init it runs
+// on the network thread. reset drops every datacenter and key, for a new instance.
+void ConnectionsManager::setCustomBackend(std::string address, uint32_t port, std::string publicKey, uint64_t fingerprint, bool reset) {
+    auto update = [&, address, port, publicKey, fingerprint, reset] {
+        bool keyChanged = customPublicKey != publicKey;
+        customAddress = address;
+        customPort = port;
+        customPublicKey = publicKey;
+        customFingerprint = fingerprint;
+        customReset = customReset || reset;
+        if (networkStarted) {
+            if (keyChanged) {
+                Handshake::cleanupServerKeys();
+            }
+            applyCustomBackend();
+        }
+    };
+    if (networkStarted) {
+        scheduleTask(update);
+    } else {
+        update();
+    }
+}
+
+void ConnectionsManager::applyCustomBackend() {
+    if (customAddress.empty()) {
+        return;
+    }
+    testBackend = true;
+    auto iter = datacenters.find(CUSTOM_DATACENTER_ID);
+    if (customReset || datacenters.size() != 1 || iter == datacenters.end()) {
+        customReset = false;
+        for (auto &entry : datacenters) {
+            entry.second->suspendConnections(true);
+        }
+        datacenters.clear();
+        currentDatacenterId = CUSTOM_DATACENTER_ID;
+        initDatacenters();
+        saveConfig();
+        return;
+    }
+    Datacenter *datacenter = iter->second;
+    currentDatacenterId = CUSTOM_DATACENTER_ID;
+    TcpAddress *current = datacenter->getCurrentAddress(0);
+    if (current == nullptr || current->address != customAddress || (uint32_t) current->port != customPort) {
+        // same instance, the gateway moved: keep the auth key, swap the address
+        std::vector<TcpAddress> addresses;
+        addresses.emplace_back(customAddress, customPort, 0, "");
+        datacenter->suspendConnections(true);
+        datacenter->replaceAddresses(addresses, 0);
+        datacenter->resetAddressAndPortNum();
+        saveConfig();
+    }
 }
 
 void ConnectionsManager::switchBackend(bool restart) {
@@ -2823,14 +2887,17 @@ void ConnectionsManager::processRequestQueue(uint32_t connectionTypes, uint32_t 
                     }
                     allDc.push_back(datacenter.first);
                 }
-                uint8_t index;
-                RAND_bytes(&index, 1);
-                datacenterId = allDc[index % allDc.size()];
-                if (dynamic_cast<TL_help_getConfig *>(request->rawRequest)) {
-                    updatingDcStartTime = currentTime;
-                    request->datacenterId = datacenterId;
-                } else {
-                    currentDatacenterId = datacenterId;
+                // a Greengram account has a single datacenter: nothing to fall back to
+                if (!allDc.empty()) {
+                    uint8_t index;
+                    RAND_bytes(&index, 1);
+                    datacenterId = allDc[index % allDc.size()];
+                    if (dynamic_cast<TL_help_getConfig *>(request->rawRequest)) {
+                        updatingDcStartTime = currentTime;
+                        request->datacenterId = datacenterId;
+                    } else {
+                        currentDatacenterId = datacenterId;
+                    }
                 }
             }
         }
@@ -3762,6 +3829,7 @@ void ConnectionsManager::init(uint32_t version, int32_t layer, int32_t apiId, st
         }
     }
 
+    networkStarted = true;
     pthread_create(&networkThread, nullptr, (ConnectionsManager::ThreadProc), this);
 
     if (needLoadConfig) {

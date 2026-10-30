@@ -77,8 +77,11 @@ public final class AppUpdateController {
     private AppUpdateController() {
     }
 
+    // Greengram ships its own builds; exteraless's update feed would offer the wrong app
+    private static final boolean ENABLED = false;
+
     public static void init(Context context) {
-        if (started) {
+        if (!ENABLED || started) {
             return;
         }
         started = true;
@@ -104,7 +107,7 @@ public final class AppUpdateController {
     }
 
     public static void checkNow() {
-        if (checking) {
+        if (!ENABLED || checking) {
             return;
         }
         checking = true;

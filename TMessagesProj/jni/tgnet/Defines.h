@@ -21,6 +21,8 @@
 //#define DEBUG_VERSION
 #define PFS_ENABLED 1
 #define DEFAULT_DATACENTER_ID INT_MAX
+// the one datacenter a Greengram gateway advertises
+#define CUSTOM_DATACENTER_ID 2
 #define DC_UPDATE_TIME 60 * 60
 #define TEMP_AUTH_KEY_EXPIRE_TIME 24 * 60 * 60
 #define PROXY_CONNECTIONS_COUNT 10

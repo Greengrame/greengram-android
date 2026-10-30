@@ -42,6 +42,44 @@
           "other_platform_oauth_client": []
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:130582632440:android:36dccdb6b459400898e80d",
+        "android_client_info": {
+          "package_name": "com.greengram.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlWLnWSZav8JdQIxaGGSTc3B4T-B5LddI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:130582632440:android:9f4555fa38f55c2b98e80d",
+        "android_client_info": {
+          "package_name": "com.greengram.app.beta"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlWLnWSZav8JdQIxaGGSTc3B4T-B5LddI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"
