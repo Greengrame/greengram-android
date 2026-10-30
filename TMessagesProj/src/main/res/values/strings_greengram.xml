@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="GreengramSignIn">Sign in to Greengram</string>
+    <string name="GreengramSignInInfo">Enter your server\'s address, your phone number and your password.</string>
+    <string name="GreengramServer">Server</string>
+    <string name="GreengramAccount">Phone number or username</string>
+    <string name="GreengramPassword">Password</string>
+    <string name="GreengramUnreachable">Can\'t reach %1$s. Check the address and your connection.</string>
+    <string name="GreengramSignInFailed">Couldn\'t sign in: %1$s</string>
+</resources>

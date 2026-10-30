@@ -121,6 +121,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.AccountInstance;
+import org.telegram.greengram.GreengramBackend;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.AuthTokensHelper;
@@ -206,6 +207,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -682,7 +684,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         keyboardView.setViewToFindFocus(slideViewsContainer);
         keyboardLinearLayout.addView(keyboardView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, CustomPhoneKeyboardView.KEYBOARD_HEIGHT_DP));
 
-        views[VIEW_PHONE_INPUT] = new PhoneView(context);
+        views[VIEW_PHONE_INPUT] = new GreengramView(context);
         views[VIEW_CODE_MESSAGE] = new LoginActivitySmsView(context, AUTH_TYPE_MESSAGE);
         views[VIEW_CODE_SMS] = new LoginActivitySmsView(context, AUTH_TYPE_SMS);
         views[VIEW_CODE_FLASH_CALL] = new LoginActivitySmsView(context, AUTH_TYPE_FLASH_CALL);
@@ -812,12 +814,12 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                     FileLog.e(e);
                 }
             } else if (id == 3) {
-                PhoneView phoneView = (PhoneView)views[VIEW_PHONE_INPUT];
-                if (phoneView.testBackendCheckBox != null) {
+                PhoneView phoneView = views[VIEW_PHONE_INPUT] instanceof PhoneView ? (PhoneView) views[VIEW_PHONE_INPUT] : null;
+                if (phoneView != null && phoneView.testBackendCheckBox != null) {
                      phoneView.testBackendCheckBox.setVisibility(phoneView.testBackendCheckBox.getVisibility() == View.GONE ? View.VISIBLE : View.GONE);
                 }
             } else if (id == 4) {
-                PhoneView phoneView = (PhoneView)views[VIEW_PHONE_INPUT];
+                PhoneView phoneView = views[VIEW_PHONE_INPUT] instanceof PhoneView ? (PhoneView) views[VIEW_PHONE_INPUT] : null;
                 if (phoneView != null) {
                     phoneView.requestPasskey(true, true);
                 }
@@ -827,6 +829,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         moreButtonView.setOnClickListener(view -> moreButtonView.toggleSubMenu());
         moreButtonView.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
         sizeNotifierFrameLayout.addView(moreButtonView, LayoutHelper.createFrame(32, 32, Gravity.RIGHT | Gravity.TOP, 16, 16, 16, 16));
+        // proxy, QR, custom API, test backend and passkeys are all Telegram-server features; it stays hidden
+        moreButtonView.setVisibility(View.GONE);
 
         radialProgressView = new RadialProgressView(context);
         radialProgressView.setSize(AndroidUtilities.dp(20));
@@ -859,7 +863,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             }
             if (currentViewNum == a) {
                 backButtonView.setVisibility(v.needBackButton() || newAccount || activityMode == MODE_CHANGE_PHONE_NUMBER ? View.VISIBLE : View.GONE);
-                moreButtonView.setVisibility(activityMode == MODE_LOGIN && currentViewNum == VIEW_PHONE_INPUT ? View.VISIBLE : View.GONE);
+                moreButtonView.setVisibility(View.GONE);
                 v.setVisibility(View.VISIBLE);
                 v.onShow();
 
@@ -1024,13 +1028,13 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         boolean granted = grantResults[0] == PackageManager.PERMISSION_GRANTED;
         if (requestCode == 6) {
             checkPermissions = false;
-            if (currentViewNum == VIEW_PHONE_INPUT) {
+            if (currentViewNum == VIEW_PHONE_INPUT && views[currentViewNum] instanceof PhoneView) {
                 ((PhoneView)views[currentViewNum]).confirmedNumber = true;
                 views[currentViewNum].onNextPressed(null);
             }
         } else if (requestCode == BasePermissionsActivity.REQUEST_CODE_CALLS) {
             checkShowPermissions = false;
-            if (currentViewNum == VIEW_PHONE_INPUT) {
+            if (currentViewNum == VIEW_PHONE_INPUT && views[currentViewNum] instanceof PhoneView) {
                 ((PhoneView) views[currentViewNum]).fillNumber();
             }
         } else if (requestCode == BasePermissionsActivity.REQUEST_CODE_OPEN_CAMERA) {
@@ -1589,7 +1593,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             final SlideView newView = views[page];
             currentViewNum = page;
             backButtonView.setVisibility(newView.needBackButton() || newAccount ? View.VISIBLE : View.GONE);
-            moreButtonView.setVisibility(activityMode == MODE_LOGIN && currentViewNum == VIEW_PHONE_INPUT ? View.VISIBLE : View.GONE);
+            moreButtonView.setVisibility(View.GONE);
 
             newView.setParams(params, false);
             setParentActivityTitle(newView.getHeaderName());
@@ -1619,7 +1623,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             setCustomKeyboardVisible(newView.hasCustomKeyboard(), true);
         } else {
             backButtonView.setVisibility(views[page].needBackButton() || newAccount ? View.VISIBLE : View.GONE);
-            moreButtonView.setVisibility(activityMode == MODE_LOGIN && currentViewNum == VIEW_PHONE_INPUT ? View.VISIBLE : View.GONE);
+            moreButtonView.setVisibility(View.GONE);
             views[currentViewNum].setVisibility(View.GONE);
             views[currentViewNum].onHide();
             currentViewNum = page;
@@ -7830,6 +7834,181 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             currentParams = bundle.getBundle("recoveryview_params" + currentStage);
             if (currentParams != null) {
                 setParams(currentParams, true);
+            }
+        }
+    }
+
+    // Greengram sign-in: server address, username, password. The instance checks the
+    // password over HTTPS; the gateway only ever sees the session, via auth.importAuthorization.
+    public class GreengramView extends SlideView {
+
+        private final TextView titleView;
+        private final TextView subtitleView;
+        private final OutlineTextContainerView[] outlines = new OutlineTextContainerView[3];
+        private final EditTextBoldCursor[] fields = new EditTextBoldCursor[3];
+        private boolean busy;
+
+        public GreengramView(Context context) {
+            super(context);
+            setOrientation(VERTICAL);
+            setGravity(Gravity.CENTER_HORIZONTAL);
+
+            titleView = new TextView(context);
+            titleView.setText(getString(R.string.GreengramSignIn));
+            titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
+            titleView.setTypeface(AndroidUtilities.bold());
+            titleView.setGravity(Gravity.CENTER_HORIZONTAL);
+            addView(titleView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 32, 16, 32, 0));
+
+            subtitleView = new TextView(context);
+            subtitleView.setText(getString(R.string.GreengramSignInInfo));
+            subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            subtitleView.setGravity(Gravity.CENTER_HORIZONTAL);
+            subtitleView.setLineSpacing(AndroidUtilities.dp(2), 1.0f);
+            addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 32, 8, 32, 0));
+
+            addField(context, 0, R.string.GreengramServer, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, EditorInfo.IME_ACTION_NEXT);
+            addField(context, 1, R.string.GreengramAccount, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, EditorInfo.IME_ACTION_NEXT);
+            addField(context, 2, R.string.GreengramPassword, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_DONE);
+            fields[2].setTransformationMethod(PasswordTransformationMethod.getInstance());
+
+            // a second account usually joins the same instance
+            GreengramBackend.Profile last = GreengramBackend.load(UserConfig.selectedAccount);
+            if (last != null) {
+                fields[0].setText(last.instance.replaceFirst("^https://", ""));
+            }
+            updateColors();
+        }
+
+        private void addField(Context context, int index, int hint, int inputType, int imeAction) {
+            OutlineTextContainerView outline = new OutlineTextContainerView(context);
+            outline.setText(getString(hint));
+            EditTextBoldCursor field = new EditTextBoldCursor(context);
+            field.setCursorSize(AndroidUtilities.dp(20));
+            field.setCursorWidth(1.5f);
+            field.setImeOptions(imeAction | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+            field.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
+            field.setMaxLines(1);
+            field.setSingleLine(true);
+            field.setInputType(inputType);
+            field.setBackground(null);
+            field.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(16), AndroidUtilities.dp(16), AndroidUtilities.dp(16));
+            field.setOnFocusChangeListener((v, hasFocus) -> outline.animateSelection(hasFocus ? 1f : 0f));
+            field.setOnEditorActionListener((textView, action, event) -> {
+                if (action == EditorInfo.IME_ACTION_NEXT && index < fields.length - 1) {
+                    fields[index + 1].requestFocus();
+                    return true;
+                }
+                if (action == EditorInfo.IME_ACTION_DONE) {
+                    onNextPressed(null);
+                    return true;
+                }
+                return false;
+            });
+            outline.attachEditText(field);
+            outline.addView(field, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+            addView(outline, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, index == 0 ? 28 : 16, 16, 0));
+            outlines[index] = outline;
+            fields[index] = field;
+        }
+
+        @Override
+        public String getHeaderName() {
+            return getString(R.string.GreengramSignIn);
+        }
+
+        @Override
+        public void onShow() {
+            super.onShow();
+            AndroidUtilities.runOnUIThread(() -> {
+                EditTextBoldCursor target = fields[0].length() == 0 ? fields[0] : fields[1];
+                target.requestFocus();
+                AndroidUtilities.showKeyboard(target);
+            }, SHOW_DELAY);
+        }
+
+        @Override
+        public void onNextPressed(String code) {
+            if (busy) {
+                return;
+            }
+            for (int i = 0; i < fields.length; i++) {
+                if (fields[i].getText().toString().trim().isEmpty()) {
+                    onFieldError(outlines[i], false);
+                    return;
+                }
+            }
+            String instance = GreengramBackend.normalize(fields[0].getText().toString());
+            String account = fields[1].getText().toString().trim();
+            String password = fields[2].getText().toString();
+            busy = true;
+            needShowProgress(0);
+            Utilities.globalQueue.postRunnable(() -> {
+                try {
+                    GreengramBackend.Profile profile = GreengramBackend.discover(instance);
+                    GreengramBackend.Session session = GreengramBackend.login(instance, account, password);
+                    AndroidUtilities.runOnUIThread(() -> bind(profile, session));
+                } catch (GreengramBackend.ServerException e) {
+                    AndroidUtilities.runOnUIThread(() -> fail(LocaleController.formatString(R.string.GreengramSignInFailed, e.getMessage())));
+                } catch (IOException e) {
+                    FileLog.e(e);
+                    AndroidUtilities.runOnUIThread(() -> fail(LocaleController.formatString(R.string.GreengramUnreachable, instance)));
+                }
+            });
+        }
+
+        private void bind(GreengramBackend.Profile profile, GreengramBackend.Session session) {
+            GreengramBackend.save(currentAccount, profile);
+            getConnectionsManager().setCustomBackend(profile, true);
+            TLRPC.TL_auth_importAuthorization req = new TLRPC.TL_auth_importAuthorization();
+            req.id = session.userId;
+            req.bytes = session.token.getBytes(StandardCharsets.US_ASCII);
+            getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                busy = false;
+                needHideProgress(false);
+                if (response instanceof TLRPC.TL_auth_authorization) {
+                    onAuthSuccess((TLRPC.TL_auth_authorization) response);
+                } else {
+                    fail(LocaleController.formatString(R.string.GreengramSignInFailed, error != null ? error.text : "?"));
+                }
+            }), ConnectionsManager.RequestFlagFailOnServerErrors | ConnectionsManager.RequestFlagWithoutLogin);
+        }
+
+        private void fail(String message) {
+            busy = false;
+            needHideProgress(false);
+            needShowAlert(getString(R.string.GreengramSignIn), message);
+        }
+
+        @Override
+        public void updateColors() {
+            titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText6));
+            for (int i = 0; i < fields.length; i++) {
+                if (fields[i] == null) {
+                    continue;
+                }
+                fields[i].setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+                fields[i].setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteInputFieldActivated));
+                outlines[i].updateColor();
+            }
+        }
+
+        @Override
+        public void saveStateParams(Bundle bundle) {
+            bundle.putString("greengram_instance", fields[0].getText().toString());
+            bundle.putString("greengram_username", fields[1].getText().toString());
+        }
+
+        @Override
+        public void restoreStateParams(Bundle bundle) {
+            String instance = bundle.getString("greengram_instance");
+            String username = bundle.getString("greengram_username");
+            if (instance != null) {
+                fields[0].setText(instance);
+            }
+            if (username != null) {
+                fields[1].setText(username);
             }
         }
     }

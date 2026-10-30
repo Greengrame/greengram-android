@@ -63,6 +63,7 @@ public:
     void setUserId(int64_t userId);
     void setUserPremium(bool premium);
     void switchBackend(bool restart);
+    void setCustomBackend(std::string address, uint32_t port, std::string publicKey, uint64_t fingerprint, bool reset);
     void resumeNetwork(bool partial);
     void pauseNetwork();
     void setNetworkAvailable(bool value, int32_t type, bool slow);
@@ -147,6 +148,15 @@ private:
     int32_t pingTime;
     int64_t pingTimeMs;
     bool testBackend = false;
+    // Greengram: when set, this account only ever talks to its instance's gateway at
+    // customAddress:customPort and trusts only customPublicKey
+    std::string customAddress;
+    uint32_t customPort = 0;
+    std::string customPublicKey;
+    uint64_t customFingerprint = 0;
+    bool customReset = false;
+    bool networkStarted = false;
+    void applyCustomBackend();
     bool clientBlocked = true;
     std::string lastInitSystemLangcode = "";
     std::atomic<uint32_t> lastRequestToken{50000000};
