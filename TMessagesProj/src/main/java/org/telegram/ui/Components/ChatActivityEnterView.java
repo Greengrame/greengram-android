@@ -315,6 +315,10 @@ public class ChatActivityEnterView extends FrameLayout implements
     public interface ChatActivityEnterViewDelegate {
         default void beforeMessageSend(CharSequence message, boolean notify, int scheduleDate, long payStars) {}
 
+        default boolean onEditLastMessage() {
+            return false;
+        }
+
         default void onEditTextScroll() {}
 
         default void onContextMenuOpen() {}
@@ -3751,9 +3755,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
                 oldSendButton.setVisibility(View.GONE);
             }
-            if (paidMessagesPrice > 0 || isLiveComment) {
-                sendButton.setStarsPrice(paidMessagesPrice, 1);
-            }
+            sendButton.setStarsPrice(paidMessagesPrice, 1);
             updateFieldRight(lastAttachVisible);
         }
         if (isLiveComment) {
@@ -6745,8 +6747,14 @@ public class ChatActivityEnterView extends FrameLayout implements
                         }
                     }
                     return true;
-                } else if (keyCode == KeyEvent.KEYCODE_ENTER && !keyEvent.isShiftPressed() && (sendByEnter ? !keyEvent.isCtrlPressed() : keyEvent.isCtrlPressed()) && keyEvent.getAction() == KeyEvent.ACTION_DOWN && editingMessageObject == null) {
-                    sendMessage();
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP && keyEvent.getAction() == KeyEvent.ACTION_DOWN && keyEvent.hasNoModifiers() && editingMessageObject == null && messageEditText != null && messageEditText.length() == 0 && delegate != null && delegate.onEditLastMessage()) {
+                    return true;
+                } else if (keyCode == KeyEvent.KEYCODE_ENTER && !keyEvent.isShiftPressed() && (sendByEnter ? !keyEvent.isCtrlPressed() : keyEvent.isCtrlPressed()) && keyEvent.getAction() == KeyEvent.ACTION_DOWN) {
+                    if (editingMessageObject != null) {
+                        doneEditingMessage();
+                    } else {
+                        sendMessage();
+                    }
                     return true;
                 }
                 return false;
@@ -6760,8 +6768,12 @@ public class ChatActivityEnterView extends FrameLayout implements
                     sendMessage();
                     return true;
                 } else if (keyEvent != null && i == EditorInfo.IME_NULL) {
-                    if (!keyEvent.isShiftPressed() && (sendByEnter ? !keyEvent.isCtrlPressed() : keyEvent.isCtrlPressed()) && keyEvent.getAction() == KeyEvent.ACTION_DOWN && editingMessageObject == null) {
-                        sendMessage();
+                    if (!keyEvent.isShiftPressed() && (sendByEnter ? !keyEvent.isCtrlPressed() : keyEvent.isCtrlPressed()) && keyEvent.getAction() == KeyEvent.ACTION_DOWN) {
+                        if (editingMessageObject != null) {
+                            doneEditingMessage();
+                        } else {
+                            sendMessage();
+                        }
                         return true;
                     }
                 }
@@ -7059,6 +7071,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                     status.setOnCancelListener((__) -> {
                         cancel.set(true);
                     });
+                    status.getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
                     status.show();
                 }
 
@@ -7075,6 +7088,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                     status.dismiss();
                     AlertUtil.showTransFailedDialog(parentActivity, unsupported, message, () -> {
                         status = AlertUtil.showProgress(parentActivity);
+                        status.getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
                         status.show();
                         Translator.translateWithContext(target, origin, new ArrayList<>(), null, provider, this);
                     });
@@ -7092,6 +7106,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                         cancel.set(true);
                     });
 
+                    status.getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
                     status.show();
 
                 }
@@ -7108,6 +7123,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                     status.dismiss();
                     AlertUtil.showTransFailedDialog(parentActivity, unsupported, message, () -> {
                         status = AlertUtil.showProgress(parentActivity);
+                        status.getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
                         status.show();
                         Translator.translate(target, origin, 0, this);
                     });
@@ -8515,6 +8531,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     protected boolean sendMessageInternal(boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars, boolean allowConfirm, SendMessageInternalParams internalParams) {
+        if (app.exteraless.privacy.BotAccountRouter.guardComposer(parentFragment, currentAccount, dialog_id)) return true;
         final boolean allowConfirmFinal = allowConfirm && !animatorEphemeralMessageVisibility.getValue();
 
         final Runnable send = () -> {
@@ -14830,8 +14847,11 @@ public class ChatActivityEnterView extends FrameLayout implements
         return emojiViewVisible || botKeyboardViewVisible;
     }
 
-    public boolean isPersistentBotKeyboardShowing() {
-        return isPopupShowing() && currentPopupContentType == POPUP_CONTENT_BOT_KEYBOARD && botReplyMarkup != null && botReplyMarkup.is_persistent;
+    public boolean canHidePopupByBackButton() {
+        if (!isPopupShowing()) {
+            return false;
+        }
+        return !(currentPopupContentType == POPUP_CONTENT_BOT_KEYBOARD && botReplyMarkup != null && botReplyMarkup.is_persistent && botButtonsMessageObject != null);
     }
 
     public boolean closeCreationLinkDialog(boolean invoked) {

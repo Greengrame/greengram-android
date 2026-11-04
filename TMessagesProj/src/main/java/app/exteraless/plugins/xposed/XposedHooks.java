@@ -63,10 +63,41 @@ public final class XposedHooks {
         return initAttempted && initOk;
     }
 
+    public static int activeHookCount() {
+        return UNHOOKS.size();
+    }
+
     public static boolean isNativeHooksBroken() {
         SharedPreferences preferences = PluginsController.getInstance().getPreferences();
         return preferences != null
                 && preferences.getBoolean(PluginsConstants.KEY_NATIVE_HOOKS_BROKEN, false);
+    }
+
+    public static void resetNativeHooksBroken() {
+        if (app.exteraless.plugins.PluginSinkGate.refuseFromPlugin("resetNativeHooksBroken", false)) {
+            return;
+        }
+        SharedPreferences preferences = PluginsController.getInstance().getPreferences();
+        if (preferences != null) {
+            preferences.edit()
+                    .remove(PluginsConstants.KEY_NATIVE_HOOKS_BROKEN)
+                    .remove(PluginsConstants.KEY_NATIVE_HOOKS_BROKEN_STAMP)
+                    .remove(PluginsConstants.KEY_NATIVE_HOOKS_STRIKES)
+                    .remove(PluginsConstants.KEY_NATIVE_HOOKS_PENDING)
+                    .commit();
+        }
+    }
+
+    private static final Set<String> UNAVAILABLE_NOTED = ConcurrentHashMap.newKeySet();
+
+    private static void noteUnavailable(String pluginId) {
+        if (pluginId == null || !UNAVAILABLE_NOTED.add(pluginId)) {
+            return;
+        }
+        app.exteraless.plugins.PluginLog.append(pluginId, "E", isNativeHooksBroken()
+                ? "hooks are off: the app crashed twice while starting the hook engine; "
+                + "turn them back on in Plugins > Plugins Engine > Retry hooks and restart the app"
+                : "hooks are unavailable: the hook engine failed to start, see the app log");
     }
 
     private static boolean ensureInitialized() {
@@ -176,6 +207,7 @@ public final class XposedHooks {
     public static String hookMethod(String pluginId, Object member, PyObject handler,
                                     int priority, String filtersJson) {
         if (!ensureInitialized()) {
+            noteUnavailable(pluginId);
             return null;
         }
         if (pluginId == null || handler == null || !(member instanceof Member)) {
@@ -200,6 +232,7 @@ public final class XposedHooks {
     public static String hookAllMethods(String pluginId, Object clazz, String methodName,
                                         PyObject handler, int priority, String filtersJson) {
         if (!ensureInitialized()) {
+            noteUnavailable(pluginId);
             return "[]";
         }
         if (pluginId == null || handler == null || !(clazz instanceof Class)
@@ -248,6 +281,7 @@ public final class XposedHooks {
     public static String hookAllConstructors(String pluginId, Object clazz, PyObject handler,
                                              int priority, String filtersJson) {
         if (!ensureInitialized()) {
+            noteUnavailable(pluginId);
             return "[]";
         }
         if (pluginId == null || handler == null || !(clazz instanceof Class)) {
