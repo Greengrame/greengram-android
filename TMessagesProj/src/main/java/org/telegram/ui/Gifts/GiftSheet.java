@@ -1,5 +1,6 @@
 package org.telegram.ui.Gifts;
 
+import org.telegram.greengram.GiftCounts;
 import static android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.dpf2;
@@ -2000,7 +2001,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
 //                            ribbon.setText(formatString(R.string.Gift2Limited1OfRibbon, AndroidUtilities.formatWholeNumber(userGift.gift.availability_issued, 0)), true);
 //                        }
                     }
-                } else if (userGift.gift.limited) {
+                } else if (userGift.gift.limited && GiftCounts.hasTotal(userGift.gift)) {
                     ribbon.setVisibility(View.VISIBLE);
                     ribbon.setColor(Theme.getColor(Theme.key_gift_ribbon, resourcesProvider));
                     ribbon.setStrokeColor(0);

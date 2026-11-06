@@ -1,5 +1,6 @@
 package org.telegram.ui.Stars;
 
+import org.telegram.greengram.GiftCounts;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.formatPluralString;
 import static org.telegram.messenger.LocaleController.formatPluralStringComma;
@@ -5672,14 +5673,14 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
             StarsController.getInstance(currentAccount).getStarGift(gift.id, remoteGift -> {
                 if (remoteGift == null) return;
                 if (remoteGift instanceof TL_stars.TL_starGiftUnique) {
-                    rowTextView.setText(remoteGift.availability_remains <= 0 ? formatPluralStringComma("Gift2QuantityIssuedNone", remoteGift.availability_total) : formatPluralStringComma("Gift2QuantityIssued1", remoteGift.availability_issued) + formatPluralStringComma("Gift2QuantityIssued2", remoteGift.availability_total));
+                    rowTextView.setText(GiftCounts.uniqueAvailability(remoteGift));
                 } else {
                     rowTextView.setText(remoteGift.availability_remains <= 0 ? formatPluralStringComma("Gift2Availability2ValueNone", remoteGift.availability_total) : formatPluralStringComma("Gift2Availability4Value", remoteGift.availability_remains, LocaleController.formatNumber(remoteGift.availability_total, ',')));
                 }
             });
         } else {
             if (gift instanceof TL_stars.TL_starGiftUnique) {
-                rowTextView.setText(gift.availability_remains <= 0 ? formatPluralStringComma("Gift2QuantityIssuedNone", gift.availability_total) : formatPluralStringComma("Gift2QuantityIssued1", gift.availability_issued) + formatPluralStringComma("Gift2QuantityIssued2", gift.availability_total));
+                rowTextView.setText(GiftCounts.uniqueAvailability(gift));
             } else {
                 rowTextView.setText(gift.availability_remains <= 0 ? formatPluralStringComma("Gift2Availability2ValueNone", gift.availability_total) : formatPluralStringComma("Gift2Availability4Value", gift.availability_remains, LocaleController.formatNumber(gift.availability_total, ',')));
             }

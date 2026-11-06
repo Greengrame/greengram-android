@@ -1,5 +1,6 @@
 package org.telegram.ui.Stars;
 
+import org.telegram.greengram.GiftCounts;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.dpf2;
 import static org.telegram.messenger.AndroidUtilities.formatDuration;
@@ -4610,10 +4611,10 @@ public class StarGiftSheet extends BottomSheetWithRecyclerListView implements No
 
                     repollMessage();
                 } else {
-                    tableView.addRow(getString(R.string.Gift2Quantity), formatPluralStringComma("Gift2QuantityIssued1", gift.availability_issued) + formatPluralStringComma("Gift2QuantityIssued2", gift.availability_total));
+                    tableView.addRow(getString(R.string.Gift2Quantity), GiftCounts.issued(gift));
                 }
             } else {
-                tableView.addRow(getString(R.string.Gift2Quantity), formatPluralStringComma("Gift2QuantityIssued1", gift.availability_issued) + formatPluralStringComma("Gift2QuantityIssued2", gift.availability_total));
+                tableView.addRow(getString(R.string.Gift2Quantity), GiftCounts.issued(gift));
             }
             if (!TextUtils.isEmpty(gift.slug) && (gift.flags & 256) != 0) {
                 final String roundedValue = BillingController.getInstance().formatCurrency(gift.value_amount, gift.value_currency, BillingController.getInstance().getCurrencyExp(gift.value_currency), true);

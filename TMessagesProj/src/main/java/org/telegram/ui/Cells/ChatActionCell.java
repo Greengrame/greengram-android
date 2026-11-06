@@ -8,6 +8,7 @@
 
 package org.telegram.ui.Cells;
 
+import org.telegram.greengram.GiftCounts;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.replaceTags;
 import static org.telegram.messenger.LocaleController.formatNumber;
@@ -2462,7 +2463,7 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
                         }
                     }
                     CharSequence ribbon = null;
-                    if (action.gift != null && action.gift.limited) {
+                    if (action.gift != null && action.gift.limited && GiftCounts.hasTotal(action.gift)) {
                         ribbon = LocaleController.formatString(R.string.Gift2Limited1OfRibbon, action.gift.availability_total > 1500 ? AndroidUtilities.formatWholeNumber(action.gift.availability_total, 0) : action.gift.availability_total);
                     }
                     CharSequence buttonText = getString(R.string.ActionGiftStarsView);
