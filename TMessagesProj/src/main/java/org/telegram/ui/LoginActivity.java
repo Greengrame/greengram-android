@@ -7848,6 +7848,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         private final TextView subtitleView;
         private final OutlineTextContainerView[] outlines = new OutlineTextContainerView[3];
         private final EditTextBoldCursor[] fields = new EditTextBoldCursor[3];
+        private final ArrayList<TextView> instanceChips = new ArrayList<>();
         private boolean busy;
 
         public GreengramView(Context context) {
@@ -7870,6 +7871,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 32, 8, 32, 0));
 
             addField(context, 0, R.string.GreengramServer, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, EditorInfo.IME_ACTION_NEXT);
+            addInstancePicker(context);
             addField(context, 1, R.string.GreengramAccount, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, EditorInfo.IME_ACTION_NEXT);
             addField(context, 2, R.string.GreengramPassword, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_DONE);
             fields[2].setTransformationMethod(PasswordTransformationMethod.getInstance());
@@ -7878,8 +7880,29 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             GreengramBackend.Profile last = GreengramBackend.load(UserConfig.selectedAccount);
             if (last != null) {
                 fields[0].setText(last.instance.replaceFirst("^https://", ""));
+            } else {
+                fields[0].setText(GreengramBackend.KNOWN_INSTANCES[0]);
             }
             updateColors();
+        }
+
+        // one tap for the instances we run; the field stays free for any other
+        private void addInstancePicker(Context context) {
+            LinearLayout row = new LinearLayout(context);
+            row.setOrientation(HORIZONTAL);
+            for (String host : GreengramBackend.KNOWN_INSTANCES) {
+                TextView chip = new TextView(context);
+                chip.setText(host);
+                chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                chip.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(6), AndroidUtilities.dp(10), AndroidUtilities.dp(6));
+                chip.setOnClickListener(v -> {
+                    fields[0].setText(host);
+                    fields[1].requestFocus();
+                });
+                row.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 0, 4, 0));
+                instanceChips.add(chip);
+            }
+            addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 10, 6, 16, 0));
         }
 
         private void addField(Context context, int index, int hint, int inputType, int imeAction) {
@@ -7993,6 +8016,10 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 fields[i].setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
                 fields[i].setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteInputFieldActivated));
                 outlines[i].updateColor();
+            }
+            for (TextView chip : instanceChips) {
+                chip.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+                chip.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4), .12f), Theme.RIPPLE_MASK_ROUNDRECT_6DP));
             }
         }
 
