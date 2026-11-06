@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName" translatable="false">LibreTGB</string>
-    <string name="NagramX" translatable="false">LibreTGB</string>
+    <string name="AppName" translatable="false">Greengram Beta</string>
+    <string name="NagramX" translatable="false">Greengram Beta</string>
 </resources>
