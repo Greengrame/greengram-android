@@ -653,9 +653,13 @@ public class AnimatedEmojiDrawable extends Drawable {
                 svgThumb.overrideWidthAndHeight(512, 512);
             }
             thumbDrawable = svgThumb;
-            mediaLocation = null;
-            mediaFilter = filter;
+            // a static emoji without thumbs (Greengram packs have none) is drawn from the file itself
+            mediaLocation = thumb == null ? ImageLocation.getForDocument(document) : null;
+            mediaFilter = thumb == null ? sizedp + "_" + sizedp : filter;
         }
+        // still frame: the thumb when there is one, else the file
+        final ImageLocation stillLocation = thumb != null ? ImageLocation.getForDocument(thumb, document) : mediaLocation;
+        final String stillFilter = thumb != null ? sizedp + "_" + sizedp : mediaFilter;
         if (cacheType == CACHE_TYPE_STANDARD_EMOJI || cacheType == CACHE_TYPE_ALERT_STANDARD_EMOJI) {
             Drawable emojiDrawable = Emoji.getEmojiDrawable(MessageObject.findAnimatedEmojiEmoticon(document, null));
             if (emojiDrawable != null) {
@@ -674,11 +678,11 @@ public class AnimatedEmojiDrawable extends Drawable {
                     thumbLocation = ImageLocation.getForDocument(thumb, document);
                 }
                 if ("video/webm".equals(document.mime_type)) {
-                    imageReceiver.setImage(null, null, ImageLocation.getForDocument(thumb, document), sizedp + "_" + sizedp, thumbLocation, null, thumbDrawable, document.size, null, document, 1);
+                    imageReceiver.setImage(null, null, stillLocation, stillFilter, thumbLocation, null, thumbDrawable, document.size, null, document, 1);
                 } else if (MessageObject.isAnimatedStickerDocument(document, true)) {
                     imageReceiver.setImage(mediaLocation, mediaFilter + "_firstframe", thumbLocation, null, thumbDrawable, document.size, null, document, 1);
                 } else {
-                    imageReceiver.setImage(ImageLocation.getForDocument(thumb, document), sizedp + "_" + sizedp, thumbLocation, null, thumbDrawable, document.size, null, document, 1);
+                    imageReceiver.setImage(stillLocation, stillFilter, thumbLocation, null, thumbDrawable, document.size, null, document, 1);
                 }
             } else {
                 ImageLocation thumbLocation = null;
