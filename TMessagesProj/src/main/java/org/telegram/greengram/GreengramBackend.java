@@ -48,6 +48,9 @@ public final class GreengramBackend {
         }
     }
 
+    // offered on the login screen, first one is the default
+    public static final String[] KNOWN_INSTANCES = {"greengram.gay", "gg-test.dexx.moe"};
+
     private GreengramBackend() {
     }
 
