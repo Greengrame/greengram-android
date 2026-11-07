@@ -1233,7 +1233,8 @@ public class UserSelectorBottomSheet extends BottomSheetWithRecyclerListView imp
     private boolean includeTonOption;
     private int tonDays;
     public void addTONOption(int days) {
-        includeTonOption = true;
+        // Greengram: collectibles can't leave for the TON blockchain
+        includeTonOption = false;
         tonDays = days;
         updateItems(false, true);
     }

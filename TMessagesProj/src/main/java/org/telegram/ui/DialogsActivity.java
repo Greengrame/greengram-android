@@ -14346,9 +14346,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
                 presentFragment(new ChatActivity(args));
             });
-            if (getMessagesController().config.walletAvailable.get()) {
-                io.add(R.drawable.ic_gram, getString(R.string.WalletTitle), () -> presentFragment(new WalletActivity()));
-            }
+            io.add(R.drawable.ic_gram, getString(R.string.WalletTitle), () -> org.telegram.greengram.GreengramWallet.open(getParentActivity()));
             }
             if (hideBottomNavigationBar && NaConfig.INSTANCE.getShowAddToBookmark().Bool()) {
                 io.add(R.drawable.msg_fave, getString(R.string.BookmarksManager), () -> presentFragment(new BookmarkManagerActivity()));

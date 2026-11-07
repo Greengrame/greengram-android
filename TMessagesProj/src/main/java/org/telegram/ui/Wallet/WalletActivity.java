@@ -3713,6 +3713,11 @@ public class WalletActivity extends UniversalFragment implements NotificationCen
 
     @Override
     public boolean onFragmentCreate() {
+        // Greengram: whatever still asks for the TON wallet gets @wallet instead
+        if (!getMessagesController().config.walletAvailable.get()) {
+            org.telegram.greengram.GreengramWallet.open(getParentActivity());
+            return false;
+        }
         WalletCard2DMaterial.prewarm(org.telegram.messenger.ApplicationLoader.applicationContext);
         getNotificationCenter().addObserver(this, NotificationCenter.walletUpdate);
         getNotificationCenter().addObserver(this, NotificationCenter.starBalanceUpdated);

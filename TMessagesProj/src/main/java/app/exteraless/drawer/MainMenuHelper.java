@@ -326,11 +326,8 @@ public final class MainMenuHelper {
                 return new MenuItemInfo(R.drawable.menu_recent, LocaleController.getString(R.string.RecentChats),
                         () -> showRecentChats(fragment, currentAccount), null);
             case WALLET:
-                if (!isWalletAvailable(currentAccount)) {
-                    return null;
-                }
                 return new MenuItemInfo(R.drawable.ic_gram, LocaleController.getString(R.string.WalletTitle),
-                        () -> fragment.presentFragment(new WalletActivity()), null);
+                        () -> org.telegram.greengram.GreengramWallet.open(fragment.getParentActivity()), null);
             case EXTERALESS_SETTINGS:
                 return new MenuItemInfo(R.drawable.exteraless_icon_tile, LocaleController.getString(R.string.OpenExteraPreferences),
                         () -> fragment.presentFragment(new OpenExteraSettingsActivity()), null);
@@ -478,9 +475,7 @@ public final class MainMenuHelper {
             case QR -> new MenuItemInfo(R.drawable.msg_qrcode, LocaleController.getString(R.string.AuthAnotherClient), null, null);
             case GHOST_MODE -> new MenuItemInfo(R.drawable.ayu_ghost, ghostModeTitle(), null, null);
             case RECENT_CHATS -> new MenuItemInfo(R.drawable.menu_recent, LocaleController.getString(R.string.RecentChats), null, null);
-            case WALLET -> isWalletAvailable(UserConfig.selectedAccount)
-                    ? new MenuItemInfo(R.drawable.ic_gram, LocaleController.getString(R.string.WalletTitle), null, null)
-                    : null;
+            case WALLET -> new MenuItemInfo(R.drawable.ic_gram, LocaleController.getString(R.string.WalletTitle), null, null);
             case EXTERALESS_SETTINGS -> new MenuItemInfo(R.drawable.exteraless_icon_tile, LocaleController.getString(R.string.OpenExteraPreferences), null, null);
             case KILL_APP -> new MenuItemInfo(R.drawable.msg_leave, LocaleController.getString(R.string.OEKillApp), null, null);
             default -> null;
