@@ -460,6 +460,19 @@ def _deny_network(plugin_id: str, event: str, what: str, detail: Optional[str]):
     raise _denial(ConnectionRefusedError(message))
 
 
+def _adopt_executed_code(args, plugin_id, loader):
+    path = getattr(_arg(args, 0), "co_filename", None)
+    if not isinstance(path, str) or not path or path.startswith("<"):
+        return
+    if _is_runtime_file(path):
+        return
+    try:
+        if loader._resolve_owner(path) is None and os.path.isfile(path):
+            loader._register_owner(path, plugin_id)
+    except Exception:
+        pass
+
+
 def _foreign_code_owner(event, args, plugin_id, loader):
     """id чужого плагина, чьим именем помечен компилируемый код, или None.
 
@@ -496,6 +509,9 @@ def _check(event, args, loader):
 
     if loader.unsafe_mode():
         return
+
+    if event == "exec":
+        _adopt_executed_code(args, plugin_id, loader)
 
     if event in ("compile", "exec"):
         victim = _foreign_code_owner(event, args, plugin_id, loader)
@@ -696,10 +712,53 @@ def _write_targets(event, args):
     return targets
 
 
+_extraction = (None, None, ())
+
+
+def _capture_extraction() -> None:
+    global _extraction
+    try:
+        importer = sys.modules["java.android.importer"]
+        zips = []
+        for finder in list(sys.path_importer_cache.values()):
+            if isinstance(finder, importer.AssetFinder):
+                for archive in finder.zip_files:
+                    if not any(archive is known for known in zips):
+                        zips.append(archive)
+        _extraction = (os.path.realpath(importer.ASSET_PREFIX),
+                       importer.AssetZipFile.extract_if_changed.__code__,
+                       tuple(zips))
+    except Exception:
+        _extraction = (None, None, ())
+
+
+def _runtime_extraction(path: str, loader) -> bool:
+    root, code, zips = _extraction
+    if root is None:
+        return False
+    try:
+        target = os.path.realpath(path)
+    except Exception:
+        return False
+    if not _within(target, root):
+        return False
+    frame = sys._getframe(1)
+    while frame is not None:
+        if frame.f_code is code:
+            archive = frame.f_locals.get("self")
+            return any(archive is known for known in zips)
+        if loader._owner_of_frame(frame) is not None:
+            return False
+        frame = frame.f_back
+    return False
+
+
 def _check_protected_write(event, args, plugin_id, loader) -> None:
     for path in _write_targets(event, args):
         reason = _protected_reason(plugin_id, path)
         if reason is None:
+            continue
+        if _runtime_extraction(path, loader):
             continue
         if getattr(loader._context_state, "engine_write", False) \
                 or loader.has_permission(loader.PERM_HOOKS, plugin_id):
@@ -729,6 +788,7 @@ def install(loader_module) -> bool:
     _loader = loader_module
     if _installed:
         return True
+    _capture_extraction()
     try:
         bound_watched = _WATCHED
         bound_hook = _hook

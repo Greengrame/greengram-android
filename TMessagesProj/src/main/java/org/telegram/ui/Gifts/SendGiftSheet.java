@@ -1,5 +1,6 @@
 package org.telegram.ui.Gifts;
 
+import org.telegram.greengram.GiftCounts;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.formatPluralString;
 import static org.telegram.messenger.LocaleController.formatPluralStringComma;
@@ -14,6 +15,7 @@ import android.graphics.Color;
 import android.graphics.PointF;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.InsetDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.SpannableStringBuilder;
@@ -392,7 +394,8 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
 
         buttonContainer = new LinearLayout(context);
         buttonContainer.setOrientation(LinearLayout.VERTICAL);
-        buttonContainer.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
+        // only under the sheet, not over its side shadow paddings (visible in landscape)
+        buttonContainer.setBackground(new InsetDrawable(new ColorDrawable(Theme.getColor(Theme.key_dialogBackground, resourcesProvider)), backgroundPaddingLeft, 0, backgroundPaddingLeft, 0));
         buttonContainer.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, 0);
         containerView.addView(buttonContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM));
 
@@ -400,7 +403,7 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
         buttonShadow.setBackgroundColor(Theme.getColor(Theme.key_dialogGrayLine, resourcesProvider));
         buttonContainer.addView(buttonShadow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 1f / AndroidUtilities.density, Gravity.FILL_HORIZONTAL | Gravity.TOP));
 
-        final float limitedProgress = Utilities.clamp(starGift == null ? 0 : (float) starGift.availability_remains / starGift.availability_total, 1f, 0);
+        final float limitedProgress = Utilities.clamp(!GiftCounts.hasTotal(starGift) ? 0 : (float) starGift.availability_remains / starGift.availability_total, 1f, 0);
         limitContainer = new FrameLayout(context);
         limitContainer.setBackground(Theme.createRoundRectDrawable(dp(6), Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider)));
 
@@ -409,7 +412,7 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
             limitContainerWrapper.addView(limitContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 30, 10, 14, 10, 14));
             limitContainerWrapper.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground, resourcesProvider));
         } else {
-            limitContainer.setVisibility(starGift != null && starGift.limited ? View.VISIBLE : View.GONE);
+            limitContainer.setVisibility(starGift != null && starGift.limited && GiftCounts.hasTotal(starGift) ? View.VISIBLE : View.GONE);
             buttonContainer.addView(limitContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 30, 10, 10, 10, 0));
             limitContainerWrapper = null;
         }
@@ -517,7 +520,7 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
         adapter.update(false);
         layoutManager.scrollToPositionWithOffset(adapter.getItemCount(), dp(200));
 
-        recyclerListView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, dp(48 + 10 + 10 + (starGift != null && starGift.limited && limitContainerWrapper == null ? 30 + 10 : 0)));
+        recyclerListView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, dp(48 + 10 + 10 + (starGift != null && starGift.limited && GiftCounts.hasTotal(starGift) && limitContainerWrapper == null ? 30 + 10 : 0)));
         recyclerListView.addItemDecoration(new RecyclerView.ItemDecoration() {
             final PointF p = new PointF();
 
@@ -525,10 +528,11 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
             public void onDraw(@NonNull Canvas c, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
                 float top = parent.getHeight();
                 float bottom = 0;
-                float left = 0;
+                float left = 0, right = parent.getWidth();
 
                 if (ViewPositionWatcher.computeCoordinatesInParent(chatView, recyclerListView, p)) {
                     left = p.x;
+                    right = p.x + chatView.getMeasuredWidth();
                     top = Math.min(top, p.y);
                     bottom = Math.max(bottom, p.y + chatView.getMeasuredHeight());
                 }
@@ -540,7 +544,8 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
                 if (top < bottom && chatView.backgroundView != null) {
                     final float s = (float) (bottom - top) / chatView.backgroundView.getHeight();
                     c.save();
-                    c.clipRect(0, top, parent.getWidth(), bottom);
+                    // only within the chat preview: in landscape the scaled background is wider than the sheet
+                    c.clipRect(left, top, right, bottom);
                     c.translate(left, top);
                     c.scale(s, s);
                     chatView.backgroundView.draw(c);
