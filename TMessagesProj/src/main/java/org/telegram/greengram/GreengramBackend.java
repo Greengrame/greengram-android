@@ -49,7 +49,7 @@ public final class GreengramBackend {
     }
 
     // offered on the login screen, first one is the default
-    public static final String[] KNOWN_INSTANCES = {"gg-test.dexx.moe", "greengram.lol"};
+    public static final String[] KNOWN_INSTANCES = {"greengram.lol", "gg-test.dexx.moe"};
 
     private GreengramBackend() {
     }
